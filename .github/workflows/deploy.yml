@@ -23,12 +23,22 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # enablement: true turns Pages on the first time this runs, so nobody has
-      # to visit the settings page before the game is playable.
+      # Turns Pages on by itself when the repository lets Actions do it. On a
+      # repo whose default workflow token is read-only this is refused with
+      # "Resource not accessible by integration", which is not worth failing
+      # the build over -- the deploy step below then prints the exact settings
+      # link. Enabling Pages by hand once makes this a no-op forever after.
       - name: Configure Pages
+        id: configure_pages
+        continue-on-error: true
         uses: actions/configure-pages@v5
         with:
           enablement: true
+
+      - name: Note if Pages could not be enabled automatically
+        if: steps.configure_pages.outcome == 'failure'
+        run: |
+          echo "::warning::Could not enable Pages from the workflow. Set Settings -> Pages -> Source: GitHub Actions once, then re-run this workflow."
 
       - uses: ./.github/actions/setup-godot
         with:

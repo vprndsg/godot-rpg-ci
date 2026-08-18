@@ -51,11 +51,12 @@ rather authenticate with a Claude subscription, add
 reach the workflow. The quickest route is `/install-github-app` from Claude
 Code in a terminal; it walks through the app and the secret together.
 
-**3. Pages turns itself on.** The deploy workflow calls
-`actions/configure-pages` with `enablement: true`, so the first push to `main`
-enables Pages and publishes. If that step is ever blocked by org policy, set it
-by hand at *Settings → Pages → Build and deployment → Source: **GitHub
-Actions*** and re-run the workflow.
+**3. Turn on Pages.** *Settings → Pages → Build and deployment → Source:
+**GitHub Actions***. The deploy workflow tries to do this for you with
+`actions/configure-pages`, but a repository whose default workflow token is
+read-only refuses it — so if the deploy job reports "Could not enable Pages
+from the workflow", flip that switch once and re-run. Everything after is
+automatic.
 
 **4. Allow Actions to write.** *Settings → Actions → General → Workflow
 permissions → Read and write permissions*, so Claude can push branches and
