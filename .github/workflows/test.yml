@@ -26,17 +26,20 @@ jobs:
         run: tools/ci.sh import
 
       - name: Check the generated files are up to date
-        # tiles.json and gen_art.py are the sources; terrain.png and
-        # terrain.tres are built from them. If regenerating changes anything,
-        # someone edited a source and forgot to re-run the generators.
+        # tiles.json and gen_art.py are the sources; terrain.png, terrain.tres
+        # and everything in docs/art/ are built from them. If regenerating
+        # changes anything, someone edited a source and forgot to re-run the
+        # generators. docs/art/ is covered too so the committed contact sheets
+        # always match the art, which is what makes GitHub's image diff on a
+        # pull request trustworthy.
         run: |
           tools/ci.sh generate
-          if ! git diff --quiet -- assets/; then
-            echo "::error::assets/ is stale. Run 'tools/ci.sh generate' and commit the result."
-            git diff --stat -- assets/
+          if ! git diff --quiet -- assets/ docs/art/; then
+            echo "::error::Generated files are stale. Run 'tools/ci.sh generate' and commit the result."
+            git diff --stat -- assets/ docs/art/
             exit 1
           fi
-          echo "generated assets are up to date"
+          echo "generated assets and art sheets are up to date"
 
       - name: Run tests
         run: tools/ci.sh test

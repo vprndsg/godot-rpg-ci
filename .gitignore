@@ -18,3 +18,8 @@ Thumbs.db
 # Python bytecode from tools/
 __pycache__/
 *.pyc
+
+# Reference boards from tools/gen_art_ai.py. These are inspiration for a human
+# or an agent to look at, never shipped art -- everything under assets/ must
+# stay reproducible from code.
+docs/art/refs/

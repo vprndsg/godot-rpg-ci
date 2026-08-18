@@ -4,7 +4,8 @@
 #
 #   tools/ci.sh setup     download Godot + the web export templates into .tools/
 #   tools/ci.sh import     re-import assets (must run before anything else)
-#   tools/ci.sh generate   regenerate the art and the baked tileset
+#   tools/ci.sh generate   regenerate the art, the baked tileset and the sheets
+#   tools/ci.sh sheets     re-render docs/art/ only (no Godot needed)
 #   tools/ci.sh test       run the headless test suite
 #   tools/ci.sh export     build the web export into build/web/
 #   tools/ci.sh all        import + test + export
@@ -82,12 +83,22 @@ cmd_import() {
   echo "import ok"
 }
 
+# Split out from generate on purpose: rendering the sheets needs no engine, so
+# an agent can look at the art without installing Godot at all.
+cmd_sheets() {
+  say "Rendering contact sheets"
+  python3 tools/art_sheet.py
+  say "Rendering maps"
+  python3 tools/render_map.py
+}
+
 cmd_generate() {
   need_godot
   say "Regenerating art"
   python3 tools/gen_art.py
   say "Baking the tileset"
   run_godot --script res://tools/build_tileset.gd
+  cmd_sheets
 }
 
 cmd_test() {
@@ -115,8 +126,9 @@ case "${1:-all}" in
   setup)    cmd_setup ;;
   import)   cmd_import ;;
   generate) cmd_generate ;;
+  sheets)   cmd_sheets ;;
   test)     shift; cmd_test "$@" ;;
   export)   cmd_export ;;
   all)      cmd_import; cmd_test; cmd_export ;;
-  *)        die "unknown command '$1' (try: setup, import, generate, test, export, all)" ;;
+  *)        die "unknown command '$1' (try: setup, import, generate, sheets, test, export, all)" ;;
 esac

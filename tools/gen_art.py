@@ -9,105 +9,20 @@ diff. Art lives in code so Claude can extend it headlessly: add a draw_* here,
 add the tile to assets/tiles/tiles.json, re-run this, then re-run
 tools/build_tileset.gd.
 
-Standard library only (zlib + struct) -- no Pillow, nothing to install.
+Standard library only -- no Pillow, nothing to install. The canvas, palette
+and PNG writer live in tools/pixel.py, which the contact-sheet and map
+renderers share.
 """
 
 import json
 import os
-import struct
-import zlib
+import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from pixel import ROOT, Canvas, CLEAR, P, noise, rgb  # noqa: F401  (rgb/CLEAR used by painters)
+
 TS = 16  # tile size
-
-
-# --------------------------------------------------------------------------
-# tiny PNG writer
-# --------------------------------------------------------------------------
-
-class Canvas:
-    def __init__(self, w, h):
-        self.w = w
-        self.h = h
-        self.px = bytearray(w * h * 4)  # RGBA, starts fully transparent
-
-    def set(self, x, y, c):
-        if not (0 <= x < self.w and 0 <= y < self.h):
-            return
-        i = (y * self.w + x) * 4
-        self.px[i:i + 4] = bytes(c)
-
-    def rect(self, x, y, w, h, c):
-        for yy in range(y, y + h):
-            for xx in range(x, x + w):
-                self.set(xx, yy, c)
-
-    def hline(self, x, y, w, c):
-        self.rect(x, y, w, 1, c)
-
-    def vline(self, x, y, h, c):
-        self.rect(x, y, 1, h, c)
-
-    def save(self, path):
-        raw = bytearray()
-        stride = self.w * 4
-        for y in range(self.h):
-            raw.append(0)  # filter type 0 (None)
-            raw += self.px[y * stride:(y + 1) * stride]
-
-        def chunk(tag, data):
-            out = struct.pack(">I", len(data)) + tag + data
-            return out + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-
-        png = b"\x89PNG\r\n\x1a\n"
-        png += chunk(b"IHDR", struct.pack(">IIBBBBB", self.w, self.h, 8, 6, 0, 0, 0))
-        png += chunk(b"IDAT", zlib.compress(bytes(raw), 9))
-        png += chunk(b"IEND", b"")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "wb") as f:
-            f.write(png)
-        print("wrote %s (%dx%d)" % (os.path.relpath(path, ROOT), self.w, self.h))
-
-
-def rgb(h):
-    h = h.lstrip("#")
-    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), 255)
-
-
-CLEAR = (0, 0, 0, 0)
-
-
-def noise(x, y, salt=0):
-    """Deterministic hash -> [0, 1). Keeps the art stable across runs."""
-    n = (x * 374761393 + y * 668265263 + salt * 2147483647) & 0xFFFFFFFF
-    n = (n ^ (n >> 13)) * 1274126177 & 0xFFFFFFFF
-    return ((n ^ (n >> 16)) & 0xFFFF) / 65536.0
-
-
-# --------------------------------------------------------------------------
-# palette
-# --------------------------------------------------------------------------
-
-P = {
-    "grass":     rgb("4c7a3c"), "grass_hi": rgb("5f9349"), "grass_lo": rgb("3d6431"),
-    "dirt":      rgb("8b6a45"), "dirt_hi":  rgb("a07e56"), "dirt_lo":  rgb("6f5336"),
-    "stone":     rgb("8b8b95"), "stone_hi": rgb("a6a6b0"), "stone_lo": rgb("6b6b75"),
-    "water":     rgb("2f5f9e"), "water_hi": rgb("4179bd"), "water_lo": rgb("234a7d"),
-    "sand":      rgb("d6c48b"), "sand_hi":  rgb("e6d6a3"), "sand_lo":  rgb("bda972"),
-    "leaf":      rgb("2f6b34"), "leaf_hi":  rgb("3f8a43"), "leaf_lo":  rgb("224f26"),
-    "bark":      rgb("6b4429"), "bark_lo":  rgb("4d301c"),
-    "wood":      rgb("8a5f3a"), "wood_hi":  rgb("a3744a"), "wood_lo":  rgb("6b482b"),
-    "wallw":     rgb("70492d"), "wallw_hi": rgb("875a38"), "wallw_lo": rgb("54371f"),
-    "walls":     rgb("5c5c66"), "walls_hi": rgb("74747f"), "walls_lo": rgb("42424b"),
-    "roof":      rgb("9e3f3f"), "roof_hi":  rgb("bb5050"), "roof_lo":  rgb("7a2f2f"),
-    "rug":       rgb("8e3b5e"), "rug_hi":   rgb("ab4c74"), "rug_lo":   rgb("6d2c48"),
-    "cloth":     rgb("c9b28d"),
-    "metal":     rgb("9aa3ad"), "metal_lo": rgb("6e757d"),
-    "fire":      rgb("e8863a"), "fire_hi":  rgb("f5c04a"), "fire_lo":  rgb("bf5a24"),
-    "glass":     rgb("6fa8c9"), "glass_hi": rgb("9bcfe6"),
-    "dark":      rgb("1a1a20"), "black": rgb("101014"),
-    "shadow":    (0, 0, 0, 70),
-}
 
 
 # --------------------------------------------------------------------------

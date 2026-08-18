@@ -14,7 +14,15 @@ tools/ci.sh import     # re-import assets; run this after touching anything
 tools/ci.sh test       # the whole suite, ~2 seconds
 tools/ci.sh generate   # only after editing tiles.json or tools/gen_art.py
 tools/ci.sh export     # web build into build/web/ (needs export templates)
+tools/ci.sh sheets     # re-render docs/art/ only (no Godot needed)
 ```
+
+**Working on art?** You cannot judge 16x16 pixels at 1:1 or a tile outside its
+map. Run `tools/ci.sh sheets`, then look at `docs/art/atlas.png` (every tile at
+6x, named) and `docs/art/map_port_azure_town.png` (the town composited from
+real map data). Never change a painter without regenerating and looking at the
+result. `AGENTS.md` has the full art loop and the current list of what needs
+improving.
 
 `tools/ci.sh test` is the gate. It fails on assertion failures **and** on any
 `SCRIPT ERROR` or `ERROR:` the engine prints, because Godot otherwise exits 0
@@ -44,6 +52,8 @@ data/npcs/*.json     display name, sprite, dialogue id, behaviour.
 dialogue/*.json      a node graph: text, choices, flags.
 assets/tiles/        tiles.json is the source; terrain.png and terrain.tres are generated.
 scripts/             game code. map_data.gd holds the validator.
+tools/pixel.py       canvas, PNG read/write, the palette. Shared by all renderers.
+docs/art/            GENERATED contact sheets and map renders. Look at these.
 scenes/              player, npc, dialogue box, world, title. Nothing content-shaped.
 tests/               the suite. Add to it whenever you add a mechanic.
 tools/               generators and ci.sh.
@@ -52,9 +62,9 @@ tools/               generators and ci.sh.
 ## Rules that keep the headless loop working
 
 **Never hand-edit a generated file.** `assets/tiles/terrain.png`,
-`assets/tiles/terrain.tres` and `assets/sprites/actors.png` are built by
-`tools/ci.sh generate`. CI regenerates them and fails if the result differs
-from what is committed.
+`assets/tiles/terrain.tres`, `assets/sprites/actors.png` and everything in
+`docs/art/` are built by `tools/ci.sh generate`. CI regenerates them and fails
+if the result differs from what is committed.
 
 **Never put map content in a `.tscn`.** A `TileMapLayer` stores its cells as a
 binary blob. You cannot read it, review it, or diff it. Maps are ASCII grids

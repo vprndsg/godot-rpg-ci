@@ -79,6 +79,11 @@ is checked is that a walkable tile sits next to it.
 4. Leave at least one clear tile in front of every door and every NPC.
 5. Add the spawns, then the portals, then the NPCs.
 6. `tools/ci.sh test -- --only maps`, then `tools/ci.sh test`.
+7. **Look at it.** `python3 tools/render_map.py <id> --scale 4 --grid --annotate`
+   writes `docs/art/map_<id>.png` with a coordinate grid and markers on every
+   spawn, portal, NPC and sign. Reading a room back as a picture catches
+   layout mistakes that pass every validator -- a bar with no way behind it, a
+   corridor one tile too narrow to feel like a corridor.
 
 Interior maps are usually 14–20 wide and 10–14 tall. Outdoor maps up to about
 40×28. Anything larger should be split into several maps joined by portals —
