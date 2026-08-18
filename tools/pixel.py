@@ -34,24 +34,27 @@ def noise(x, y, salt=0):
 # --------------------------------------------------------------------------
 
 P = {
-    "grass":     rgb("4c7a3c"), "grass_hi": rgb("5f9349"), "grass_lo": rgb("3d6431"),
-    "dirt":      rgb("8b6a45"), "dirt_hi":  rgb("a07e56"), "dirt_lo":  rgb("6f5336"),
-    "stone":     rgb("8b8b95"), "stone_hi": rgb("a6a6b0"), "stone_lo": rgb("6b6b75"),
-    "water":     rgb("2f5f9e"), "water_hi": rgb("4179bd"), "water_lo": rgb("234a7d"),
-    "sand":      rgb("d6c48b"), "sand_hi":  rgb("e6d6a3"), "sand_lo":  rgb("bda972"),
-    "leaf":      rgb("2f6b34"), "leaf_hi":  rgb("3f8a43"), "leaf_lo":  rgb("224f26"),
-    "bark":      rgb("6b4429"), "bark_lo":  rgb("4d301c"),
-    "wood":      rgb("8a5f3a"), "wood_hi":  rgb("a3744a"), "wood_lo":  rgb("6b482b"),
-    "wallw":     rgb("70492d"), "wallw_hi": rgb("875a38"), "wallw_lo": rgb("54371f"),
-    "walls":     rgb("5c5c66"), "walls_hi": rgb("74747f"), "walls_lo": rgb("42424b"),
-    "roof":      rgb("9e3f3f"), "roof_hi":  rgb("bb5050"), "roof_lo":  rgb("7a2f2f"),
-    "rug":       rgb("8e3b5e"), "rug_hi":   rgb("ab4c74"), "rug_lo":   rgb("6d2c48"),
-    "cloth":     rgb("c9b28d"),
-    "metal":     rgb("9aa3ad"), "metal_lo": rgb("6e757d"),
-    "fire":      rgb("e8863a"), "fire_hi":  rgb("f5c04a"), "fire_lo":  rgb("bf5a24"),
-    "glass":     rgb("6fa8c9"), "glass_hi": rgb("9bcfe6"),
-    "dark":      rgb("1a1a20"), "black": rgb("101014"),
-    "shadow":    (0, 0, 0, 70),
+    # Salt-air greens and sea-glass blues keep Port Azure coastal rather than
+    # generic fantasy. Values stay separated enough to read at 16x16.
+    "grass":     rgb("587a3e"), "grass_hi": rgb("75934f"), "grass_lo": rgb("3d5c35"),
+    "dirt":      rgb("9a7147"), "dirt_hi":  rgb("bd9360"), "dirt_lo":  rgb("705039"),
+    "stone":     rgb("858d8b"), "stone_hi": rgb("b1b6aa"), "stone_lo": rgb("596567"),
+    "water":     rgb("176c86"), "water_hi": rgb("42b7b7"), "water_lo": rgb("174969"),
+    "foam":      rgb("bde4d5"),
+    "sand":      rgb("d9bd79"), "sand_hi":  rgb("f0d99b"), "sand_lo": rgb("b08c55"),
+    "leaf":      rgb("356442"), "leaf_hi":  rgb("5c8a4a"), "leaf_lo": rgb("233f39"),
+    "bark":      rgb("765037"), "bark_lo":  rgb("4b342c"),
+    "wood":      rgb("97613b"), "wood_hi":  rgb("c18750"), "wood_lo": rgb("63402f"),
+    "wallw":     rgb("795039"), "wallw_hi": rgb("a46e45"), "wallw_lo": rgb("4f352d"),
+    "walls":     rgb("657073"), "walls_hi": rgb("929b96"), "walls_lo": rgb("414c55"),
+    "roof":      rgb("a84d35"), "roof_hi":  rgb("d16a45"), "roof_lo": rgb("71362f"),
+    "rug":       rgb("7f405b"), "rug_hi":   rgb("af5d70"), "rug_lo": rgb("563247"),
+    "cloth":     rgb("d7c39a"),
+    "metal":     rgb("9ba9a7"), "metal_lo": rgb("5c6b70"),
+    "fire":      rgb("e77b34"), "fire_hi":  rgb("f6cf62"), "fire_lo": rgb("ad4930"),
+    "glass":     rgb("4c9eb2"), "glass_hi": rgb("a5d8ce"),
+    "dark":      rgb("17222b"), "black": rgb("0d151c"),
+    "shadow":    (12, 22, 28, 78), "shadow_soft": (12, 22, 28, 42),
 }
 
 
