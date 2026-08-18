@@ -23,6 +23,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # enablement: true turns Pages on the first time this runs, so nobody has
+      # to visit the settings page before the game is playable.
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
       - uses: ./.github/actions/setup-godot
         with:
           export-templates: "true"
