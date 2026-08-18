@@ -40,13 +40,25 @@ def speckle(c, ox, oy, base, hi, lo, density=0.18, salt=0):
                 c.set(ox + x, oy + y, hi)
 
 
+def cast_shadow(c, ox, oy, cx, cy, rx, ry):
+    """Dithered ellipse for props that sit over a separate ground layer."""
+    for y in range(max(0, cy - ry), min(TS, cy + ry + 1)):
+        for x in range(max(0, cx - rx), min(TS, cx + rx + 1)):
+            dx = (x - cx) / float(rx)
+            dy = (y - cy) / float(ry)
+            d = dx * dx + dy * dy
+            if d <= 0.62:
+                c.set(ox + x, oy + y, P["shadow"])
+            elif d <= 1.0 and (x + y) % 2 == 0:
+                c.set(ox + x, oy + y, P["shadow_soft"])
+
+
 def t_grass(c, ox, oy):
-    speckle(c, ox, oy, P["grass"], P["grass_hi"], P["grass_lo"], 0.22, 1)
-    for y in range(TS):
-        for x in range(TS):
-            if noise(ox + x, oy + y, 7) > 0.94:
-                c.set(ox + x, oy + y, P["grass_hi"])
-                c.set(ox + x, oy + y + 1, P["grass_lo"])
+    speckle(c, ox, oy, P["grass"], P["grass_hi"], P["grass_lo"], 0.10, 1)
+    for x, y in ((2, 5), (11, 2), (7, 12)):
+        c.set(ox + x, oy + y, P["grass_lo"])
+        c.set(ox + x - 1, oy + y - 1, P["grass_hi"])
+        c.set(ox + x + 1, oy + y - 1, P["grass_hi"])
 
 
 def t_grass_flower(c, ox, oy):
@@ -59,62 +71,89 @@ def t_grass_flower(c, ox, oy):
 
 
 def t_dirt(c, ox, oy):
-    speckle(c, ox, oy, P["dirt"], P["dirt_hi"], P["dirt_lo"], 0.3, 2)
+    speckle(c, ox, oy, P["dirt"], P["dirt_hi"], P["dirt_lo"], 0.14, 2)
+    for x, y in ((3, 3), (10, 7), (6, 13)):
+        c.hline(ox + x, oy + y, 2, P["dirt_lo"])
 
 
 def t_stone_path(c, ox, oy):
-    c.rect(ox, oy, TS, TS, P["stone"])
-    # irregular cobbles
-    for (x, y, w, h) in ((0, 0, 7, 7), (8, 0, 8, 5), (0, 8, 5, 8), (6, 6, 5, 5),
-                         (12, 6, 4, 6), (6, 12, 10, 4)):
-        c.rect(ox + x, oy + y, w, h, P["stone_hi"] if (x + y) % 4 == 0 else P["stone"])
-        c.hline(ox + x, oy + y + h - 1, w, P["stone_lo"])
-        c.vline(ox + x + w - 1, oy + y, h, P["stone_lo"])
+    c.rect(ox, oy, TS, TS, P["stone_lo"])
+    # Rounded, salt-worn setts with recessed dark mortar.
+    for (x, y, w, h) in ((0, 0, 6, 5), (7, 0, 9, 6), (0, 6, 8, 5),
+                         (9, 7, 7, 4), (0, 12, 5, 4), (6, 12, 10, 4)):
+        c.rect(ox + x + 1, oy + y, w - 1, h - 1, P["stone"])
+        c.hline(ox + x + 2, oy + y, max(1, w - 3), P["stone_hi"])
+        c.set(ox + x + w - 1, oy + y + h - 2, P["stone_lo"])
 
 
 def t_water(c, ox, oy):
     c.rect(ox, oy, TS, TS, P["water"])
-    for y in range(TS):
-        for x in range(TS):
-            if noise(ox + x, oy + y, 3) > 0.86:
-                c.set(ox + x, oy + y, P["water_lo"])
-    for y in (3, 9):
-        for x in range(2, 12):
-            if (x + y) % 5 < 3:
-                c.set(ox + x, oy + y, P["water_hi"])
+    c.hline(ox, oy + 5, TS, P["water_lo"])
+    c.hline(ox, oy + 12, TS, P["water_lo"])
+    for x, y, w in ((1, 2, 6), (9, 4, 5), (4, 8, 8), (0, 14, 5), (11, 11, 4)):
+        c.hline(ox + x, oy + y, w, P["water_hi"])
+        if w >= 6:
+            c.set(ox + x + 1, oy + y - 1, P["foam"])
+            c.set(ox + x + w - 2, oy + y + 1, P["water_lo"])
 
 
 def t_sand(c, ox, oy):
-    speckle(c, ox, oy, P["sand"], P["sand_hi"], P["sand_lo"], 0.24, 4)
+    speckle(c, ox, oy, P["sand"], P["sand_hi"], P["sand_lo"], 0.10, 4)
+    for x, y in ((3, 12), (12, 4), (8, 8)):
+        c.set(ox + x, oy + y, P["sand_lo"])
+        c.set(ox + x + 1, oy + y, P["sand_hi"])
+
+
+def t_shore(c, ox, oy):
+    """Horizontal sea-to-sand edge used along Port Azure's north beach."""
+    t_sand(c, ox, oy)
+    edge = (6, 6, 7, 7, 6, 5, 5, 6, 6, 7, 7, 6, 5, 5, 6, 6)
+    for x, depth in enumerate(edge):
+        for y in range(depth):
+            c.set(ox + x, oy + y, P["water"])
+        c.set(ox + x, oy + depth - 2, P["water_hi"])
+        c.set(ox + x, oy + depth - 1, P["foam"])
+    c.hline(ox + 1, oy + 2, 5, P["water_hi"])
+    c.hline(ox + 10, oy + 3, 4, P["water_lo"])
+
+
+def t_dune_edge(c, ox, oy):
+    """Horizontal sand-to-grass edge with an irregular windblown fringe."""
+    t_grass(c, ox, oy)
+    edge = (5, 5, 4, 4, 5, 6, 6, 5, 4, 4, 5, 6, 6, 5, 5, 5)
+    for x, depth in enumerate(edge):
+        for y in range(depth):
+            c.set(ox + x, oy + y, P["sand"])
+        c.set(ox + x, oy + depth - 1, P["sand_lo"])
+    for x, y in ((2, 7), (7, 8), (13, 7)):
+        c.set(ox + x, oy + y, P["grass_hi"])
+        c.set(ox + x + 1, oy + y + 1, P["grass_lo"])
 
 
 def t_tree(c, ox, oy):
-    t_grass(c, ox, oy)
-    c.rect(ox + 6, oy + 10, 4, 6, P["bark"])
-    c.vline(ox + 9, oy + 10, 6, P["bark_lo"])
-    for y in range(TS):
-        for x in range(TS):
-            dx, dy = x - 8, y - 7
-            d = dx * dx + dy * dy * 1.4
-            if d < 42:
-                col = P["leaf"]
-                if d > 30:
-                    col = P["leaf_lo"]
-                elif noise(ox + x, oy + y, 5) > 0.6:
-                    col = P["leaf_hi"]
-                c.set(ox + x, oy + y, col)
-    c.rect(ox + 5, oy + 2, 3, 2, P["leaf_hi"])
+    cast_shadow(c, ox, oy, 9, 13, 6, 2)
+    c.rect(ox + 7, oy + 9, 3, 7, P["bark_lo"])
+    c.vline(ox + 7, oy + 10, 5, P["bark"])
+    # Wind-shaped coastal crown: dark silhouette, mid clumps, sunlit crown.
+    for x, y, w, h in ((2, 5, 9, 7), (5, 2, 8, 8), (9, 5, 6, 6)):
+        c.rect(ox + x, oy + y, w, h, P["leaf_lo"])
+    for x, y, w, h in ((3, 4, 7, 6), (6, 2, 6, 6), (9, 5, 4, 4)):
+        c.rect(ox + x, oy + y, w, h, P["leaf"])
+    c.rect(ox + 5, oy + 3, 4, 2, P["leaf_hi"])
+    c.rect(ox + 10, oy + 5, 3, 2, P["leaf_hi"])
+    for x, y in ((2, 7), (4, 3), (8, 1), (13, 7), (11, 10)):
+        c.set(ox + x, oy + y, CLEAR)
 
 
 def t_bush(c, ox, oy):
-    t_grass(c, ox, oy)
-    for y in range(TS):
-        for x in range(TS):
-            dx, dy = x - 8, y - 10
-            if dx * dx + dy * dy * 1.6 < 32:
-                col = P["leaf"] if noise(ox + x, oy + y, 6) > 0.45 else P["leaf_hi"]
-                c.set(ox + x, oy + y, col)
-    c.hline(ox + 4, oy + 14, 9, P["leaf_lo"])
+    cast_shadow(c, ox, oy, 8, 13, 6, 2)
+    c.rect(ox + 3, oy + 8, 11, 6, P["leaf_lo"])
+    c.rect(ox + 5, oy + 6, 5, 7, P["leaf"])
+    c.rect(ox + 9, oy + 7, 4, 5, P["leaf"])
+    c.hline(ox + 5, oy + 7, 4, P["leaf_hi"])
+    c.hline(ox + 10, oy + 8, 2, P["leaf_hi"])
+    c.set(ox + 3, oy + 8, CLEAR)
+    c.set(ox + 13, oy + 8, CLEAR)
 
 
 def _planks(c, ox, oy, base, hi, lo, offset=0):
@@ -189,12 +228,13 @@ def t_wall_top(c, ox, oy):
 
 
 def t_roof(c, ox, oy):
-    c.rect(ox, oy, TS, TS, P["roof"])
-    for row, y in enumerate((0, 5, 10)):
+    c.rect(ox, oy, TS, TS, P["roof_lo"])
+    for row, y in enumerate((0, 5, 10, 15)):
         off = 0 if row % 2 == 0 else 3
         for x in range(-off, TS, 6):
-            c.rect(ox + x, oy + y, 5, 4, P["roof_hi"] if row % 2 else P["roof"])
-            c.hline(ox + x, oy + y + 4, 5, P["roof_lo"])
+            c.rect(ox + x, oy + y, 5, 4, P["roof"])
+            c.hline(ox + x + 1, oy + y, 3, P["roof_hi"])
+            c.set(ox + x + 4, oy + y + 3, P["roof_lo"])
 
 
 def t_door(c, ox, oy):
@@ -223,7 +263,7 @@ def t_stairs_down(c, ox, oy):
 
 
 def t_counter(c, ox, oy):
-    t_wood_floor(c, ox, oy)
+    cast_shadow(c, ox, oy, 8, 14, 7, 2)
     c.rect(ox, oy + 2, TS, 12, P["wood_lo"])
     c.rect(ox, oy + 2, TS, 3, P["wood_hi"])
     c.hline(ox, oy + 5, TS, P["wood"])
@@ -233,7 +273,7 @@ def t_counter(c, ox, oy):
 
 
 def t_table(c, ox, oy):
-    t_wood_floor(c, ox, oy)
+    cast_shadow(c, ox, oy, 8, 13, 7, 2)
     c.rect(ox + 1, oy + 3, 14, 9, P["wood_lo"])
     c.rect(ox + 2, oy + 4, 12, 6, P["wood_hi"])
     c.hline(ox + 2, oy + 4, 12, P["cloth"])
@@ -242,7 +282,7 @@ def t_table(c, ox, oy):
 
 
 def t_chair(c, ox, oy):
-    t_wood_floor(c, ox, oy)
+    cast_shadow(c, ox, oy, 8, 13, 4, 2)
     c.rect(ox + 4, oy + 3, 8, 8, P["wood_lo"])
     c.rect(ox + 5, oy + 4, 6, 3, P["wood_hi"])
     c.rect(ox + 4, oy + 11, 2, 3, P["wood_lo"])
@@ -250,7 +290,7 @@ def t_chair(c, ox, oy):
 
 
 def t_bed(c, ox, oy):
-    t_wood_floor(c, ox, oy)
+    cast_shadow(c, ox, oy, 8, 14, 7, 2)
     c.rect(ox + 1, oy + 1, 14, 14, P["wood_lo"])
     c.rect(ox + 2, oy + 2, 12, 12, P["cloth"])
     c.rect(ox + 2, oy + 2, 12, 4, rgb("e8e6de"))
@@ -268,7 +308,7 @@ def t_fireplace(c, ox, oy):
 
 
 def t_barrel(c, ox, oy):
-    t_wood_floor(c, ox, oy)
+    cast_shadow(c, ox, oy, 9, 14, 6, 2)
     # dark rim first so the barrel separates from a wooden floor behind it
     c.rect(ox + 2, oy + 1, 12, 15, P["dark"])
     c.rect(ox + 3, oy + 2, 10, 13, P["bark"])
@@ -284,7 +324,7 @@ def t_barrel(c, ox, oy):
 
 
 def t_crate(c, ox, oy):
-    t_wood_floor(c, ox, oy)
+    cast_shadow(c, ox, oy, 9, 14, 6, 2)
     c.rect(ox + 2, oy + 3, 12, 12, P["wood_lo"])
     c.rect(ox + 3, oy + 4, 10, 10, P["wood"])
     for i in range(10):
@@ -293,7 +333,7 @@ def t_crate(c, ox, oy):
 
 
 def t_sign(c, ox, oy):
-    t_grass(c, ox, oy)
+    cast_shadow(c, ox, oy, 9, 14, 5, 2)
     c.rect(ox + 7, oy + 8, 2, 8, P["bark"])
     c.rect(ox + 2, oy + 3, 12, 7, P["wood_lo"])
     c.rect(ox + 3, oy + 4, 10, 5, P["wood_hi"])
@@ -311,7 +351,7 @@ def t_window(c, ox, oy):
 
 
 def t_fence(c, ox, oy):
-    t_grass(c, ox, oy)
+    cast_shadow(c, ox, oy, 8, 14, 7, 2)
     c.rect(ox + 1, oy + 4, 2, 11, P["wood_lo"])
     c.rect(ox + 12, oy + 4, 2, 11, P["wood_lo"])
     c.rect(ox, oy + 6, TS, 2, P["wood"])
@@ -320,7 +360,7 @@ def t_fence(c, ox, oy):
 
 
 def t_lamp(c, ox, oy):
-    t_stone_path(c, ox, oy)
+    cast_shadow(c, ox, oy, 9, 14, 4, 2)
     c.rect(ox + 7, oy + 6, 2, 10, P["metal_lo"])
     c.rect(ox + 5, oy + 1, 6, 6, P["metal"])
     c.rect(ox + 6, oy + 2, 4, 4, P["fire_hi"])
@@ -350,6 +390,7 @@ def t_void(c, ox, oy):
 PAINTERS = {
     "grass": t_grass, "grass_flower": t_grass_flower, "dirt": t_dirt,
     "stone_path": t_stone_path, "water": t_water, "sand": t_sand,
+    "shore": t_shore, "dune_edge": t_dune_edge,
     "tree": t_tree, "bush": t_bush,
     "wood_floor": t_wood_floor, "wood_floor_b": t_wood_floor_b,
     "stone_floor": t_stone_floor, "rug": t_rug, "wall_stone": t_wall_stone,
@@ -386,16 +427,16 @@ def build_terrain():
 FRAME_W, FRAME_H = 16, 24
 
 ACTORS = [
-    # name,        skin,     hair,     shirt,    pants
-    ("player",     "e0ac7e", "6b4a2a", "3f6fa8", "35405c"),
-    ("bartender",  "d69a6b", "8a3f2a", "b8b4a8", "5a4433"),
-    ("harbormaster", "c98d5f", "e0dcd2", "2f5f4a", "3a3a44"),
-    ("villager",   "eabb8e", "4a3a2c", "8e6fa8", "4a4030"),
+    # name,          skin,     hair,     shirt,    pants,    accent
+    ("player",       "e2ad7f", "50382d", "356f88", "2f4056", "c76b42"),
+    ("bartender",    "d89b6b", "7b3d2d", "8b5a3c", "4d4038", "e0c99b"),
+    ("harbormaster", "ca8f62", "ded8c8", "365f50", "333f4a", "d2a84b"),
+    ("villager",     "e8b78d", "49342e", "7d557c", "453d42", "4f8d82"),
 ]
 
 
-def draw_actor(c, ox, oy, dir_idx, frame, skin, hair, shirt, pants):
-    S, H, SH, PA = rgb(skin), rgb(hair), rgb(shirt), rgb(pants)
+def draw_actor(c, ox, oy, role, dir_idx, frame, skin, hair, shirt, pants, accent):
+    S, H, SH, PA, AC = rgb(skin), rgb(hair), rgb(shirt), rgb(pants), rgb(accent)
     HD = tuple(max(0, v - 30) for v in H[:3]) + (255,)
     SHD = tuple(max(0, v - 35) for v in SH[:3]) + (255,)
     OUT = P["dark"]
@@ -451,15 +492,38 @@ def draw_actor(c, ox, oy, dir_idx, frame, skin, hair, shirt, pants):
             c.set(ox + 11, oy + 9, tuple(max(0, v - 40) for v in S[:3]) + (255,))
             c.vline(ox + 3, oy + 3, 5, HD)
 
+    # Occupation-specific shapes make NPCs readable before dialogue opens.
+    if role == "player":
+        c.hline(ox + 5, oy + 10, 6, AC)  # rust scarf
+        if dir_idx in (0, 2):
+            c.vline(ox + 10, oy + 11, 5, AC)  # satchel strap
+        elif dir_idx == 1:
+            c.vline(ox + 5, oy + 11, 5, AC)
+        c.set(ox + 11, oy + 16, AC)
+    elif role == "bartender":
+        c.hline(ox + 5, oy + 10, 6, AC)
+        c.rect(ox + 6, oy + 11, 4, 6, AC)  # pale apron
+        c.vline(ox + 9, oy + 12, 5, P["cloth"])
+    elif role == "harbormaster":
+        c.hline(ox + 4, oy + 2, 8, PA)  # square navy watch cap
+        c.hline(ox + 5, oy + 1, 6, PA)
+        if dir_idx != 3:
+            c.hline(ox + 5, oy + 9, 6, H)  # white beard
+            c.hline(ox + 6, oy + 10, 4, H)
+        c.set(ox + 10, oy + 12, AC)  # brass badge
+    elif role == "villager":
+        c.rect(ox + 11, oy + 3, 2, 3, AC)  # sea-green hair ribbon
+        c.hline(ox + 4, oy + 15, 8, AC)
+
 
 def build_actors():
     rows = len(ACTORS) * 4
     c = Canvas(4 * FRAME_W, rows * FRAME_H)
-    for a, (name, skin, hair, shirt, pants) in enumerate(ACTORS):
+    for a, (name, skin, hair, shirt, pants, accent) in enumerate(ACTORS):
         for d in range(4):
             for f in range(4):
                 draw_actor(c, f * FRAME_W, (a * 4 + d) * FRAME_H,
-                           d, f, skin, hair, shirt, pants)
+                           name, d, f, skin, hair, shirt, pants, accent)
     c.save(os.path.join(ROOT, "assets/sprites/actors.png"))
     manifest = {
         "frame_size": [FRAME_W, FRAME_H],

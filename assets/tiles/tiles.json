@@ -38,6 +38,9 @@
     "fence":       { "atlas": [4, 3], "solid": true  },
     "lamp":        { "atlas": [5, 3], "solid": true  },
     "shelf":       { "atlas": [6, 3], "solid": true  },
-    "void":        { "atlas": [7, 3], "solid": true  }
+    "void":        { "atlas": [7, 3], "solid": true  },
+
+    "shore":       { "atlas": [0, 4], "solid": true  },
+    "dune_edge":   { "atlas": [1, 4], "solid": false }
   }
 }
