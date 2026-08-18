@@ -1,0 +1,36 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/npc.gd" id="1_npc"]
+[ext_resource type="Script" path="res://scripts/actor_sprite.gd" id="2_sprite"]
+[ext_resource type="Texture2D" path="res://assets/sprites/actors.png" id="3_sheet"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(11, 9)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_talk"]
+size = Vector2(16, 16)
+
+[node name="Npc" type="CharacterBody2D"]
+collision_layer = 4
+collision_mask = 1
+motion_mode = 1
+script = ExtResource("1_npc")
+
+[node name="Sprite" type="Sprite2D" parent="."]
+texture = ExtResource("3_sheet")
+region_enabled = true
+region_rect = Rect2(0, 0, 16, 24)
+script = ExtResource("2_sprite")
+actor = "villager"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, 2)
+shape = SubResource("RectangleShape2D_body")
+
+[node name="Interactable" type="Area2D" parent="."]
+collision_layer = 8
+collision_mask = 0
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Interactable"]
+shape = SubResource("RectangleShape2D_talk")

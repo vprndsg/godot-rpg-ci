@@ -1,0 +1,23 @@
+name: Bug
+description: Something in the game is wrong or broken.
+title: "@claude "
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens
+      placeholder: Walking into the inn drops the player inside the fireplace.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should happen instead
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      placeholder: maps/port_azure_inn_ground.json, the door portal

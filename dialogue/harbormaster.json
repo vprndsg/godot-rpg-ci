@@ -1,0 +1,91 @@
+{
+  "id": "harbormaster",
+  "speaker_default": "Kesk",
+  "start": "open",
+  "nodes": {
+    "open": {
+      "goto_if": [
+        {
+          "requires": {
+            "ledger_paid": true
+          },
+          "next": "after_paid"
+        },
+        {
+          "requires": {
+            "ledger_signed": true
+          },
+          "next": "pay_out"
+        },
+        {
+          "requires": {
+            "ledger_started": true
+          },
+          "next": "nag"
+        }
+      ],
+      "speaker": "Kesk",
+      "text": "Tide's out and my paperwork isn't. You look like someone with functioning legs.",
+      "next": "offer"
+    },
+    "offer": {
+      "speaker": "Kesk",
+      "text": "Mira at the Salt & Sextant owes me a signature. Walk it up the hill?",
+      "choices": [
+        {
+          "text": "I'll do it.",
+          "next": "accept",
+          "set": {
+            "ledger_started": true
+          }
+        },
+        {
+          "text": "Where is the inn?",
+          "next": "directions"
+        },
+        {
+          "text": "Not today.",
+          "next": "decline"
+        }
+      ]
+    },
+    "directions": {
+      "speaker": "Kesk",
+      "text": "West along the quay, then up. Red roof, salt-bleached door. You'll smell the fire before you see it.",
+      "next": "offer"
+    },
+    "accept": {
+      "speaker": "Kesk",
+      "text": "Good. Tell her Kesk sent you, and don't let her pour you anything until she's signed.",
+      "next": ""
+    },
+    "decline": {
+      "speaker": "Kesk",
+      "text": "Suit yourself. The ledger isn't going anywhere and neither, apparently, are you.",
+      "next": ""
+    },
+    "nag": {
+      "speaker": "Kesk",
+      "text": "Still here? The signature won't fetch itself. Uphill, red roof.",
+      "next": ""
+    },
+    "pay_out": {
+      "speaker": "Kesk",
+      "text": "She signed it. I owe you an apology and eight marks, and you're only getting one of those.",
+      "set": {
+        "ledger_paid": true
+      },
+      "next": "pay_out_end"
+    },
+    "pay_out_end": {
+      "speaker": "Kesk",
+      "text": "Eight marks. Spend it back at Mira's, she'll only send it to me as harbour dues anyway.",
+      "next": ""
+    },
+    "after_paid": {
+      "speaker": "Kesk",
+      "text": "Clear skies. If the wind turns I'll want a runner again -- you know where I stand.",
+      "next": ""
+    }
+  }
+}

@@ -1,0 +1,38 @@
+name: Game content request
+description: Ask Claude to build a map, an NPC, a quest or a conversation.
+title: "@claude "
+labels: [content]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep `@claude` in the title (or write it in the body) so the workflow fires.
+        Claude will read `CLAUDE.md`, make the change on a branch, run the test
+        suite, and open a pull request.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What should exist when this is done?
+      description: Describe the finished thing, not the steps to build it.
+      placeholder: |
+        A two-storey inn in Port Azure. Ground floor: six tables, a bartender
+        behind the bar, a fireplace, stairs up. Upstairs: four guest rooms.
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: What must not change?
+      description: Existing maps, NPCs or systems this work should leave alone.
+      placeholder: Do not modify the surrounding town or move the harbourmaster.
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: How will you know it worked?
+      description: Anything specific you want asserted, beyond the standard suite.
+      placeholder: |
+        Every room upstairs is reachable from the stairs.
+        The bartender can be talked to from the taproom floor.

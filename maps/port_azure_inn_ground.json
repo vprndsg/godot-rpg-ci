@@ -1,0 +1,112 @@
+{
+  "id": "port_azure_inn_ground",
+  "display_name": "The Salt & Sextant",
+  "legend": {
+    ">": "stairs_up",
+    "C": "counter",
+    "D": "door",
+    "F": "wood_floor_b",
+    "S": "stone_floor",
+    "W": "wall_stone",
+    "^": "wall_top",
+    "c": "chair",
+    "f": "wood_floor",
+    "h": "shelf",
+    "n": "window",
+    "o": "barrel",
+    "p": "fireplace",
+    "r": "rug",
+    "t": "table",
+    "x": "crate"
+  },
+  "ground": [
+    "ffffffffffffffffff",
+    "FFFFFFFFFFFFFSSSSF",
+    "fffffffffffffSSSSf",
+    "FFFFFFFFFFFFFSSSSF",
+    "ffffffffffffffffff",
+    "FFFFFFFFFFFFFFFFFF",
+    "ffffffffffffffffff",
+    "FFFFFFFFFFFFFFFFFF",
+    "ffrrrrffffffffffff",
+    "FFrrrrFFFFFFFFFFFF",
+    "ffrrrrffffffffffff",
+    "FFFFFFFFFFFFFFFFFF",
+    "ffffffffffffffffff"
+  ],
+  "objects": [
+    "^^^^^^^^^^^^^^^^^^",
+    "Wohhhhh       pp W",
+    "Wo CCCCCCCCC     W",
+    "W                W",
+    "W               xW",
+    "W                W",
+    "n  tc  tc  tc    n",
+    "W  c   c   c     W",
+    "W                W",
+    "W  tc  tc  tc    W",
+    "W  c   c   c    >W",
+    "W                W",
+    "WWWWWWWWDWWWWWWWWW"
+  ],
+  "spawns": {
+    "start": [
+      8,
+      11
+    ],
+    "from_town": [
+      8,
+      11
+    ],
+    "from_upstairs": [
+      16,
+      11
+    ]
+  },
+  "portals": [
+    {
+      "at": [
+        8,
+        12
+      ],
+      "to": "port_azure_town",
+      "spawn": "from_inn"
+    },
+    {
+      "at": [
+        16,
+        10
+      ],
+      "to": "port_azure_inn_upper",
+      "spawn": "from_downstairs",
+      "prompt": "Up to the rooms"
+    }
+  ],
+  "npcs": [
+    {
+      "npc": "bartender",
+      "at": [
+        12,
+        2
+      ],
+      "facing": "down"
+    },
+    {
+      "npc": "patron",
+      "at": [
+        4,
+        10
+      ],
+      "facing": "up"
+    }
+  ],
+  "signs": [
+    {
+      "at": [
+        16,
+        4
+      ],
+      "text": "A chalked slate leaning on the crate: ROOM 4d/night. NO SINGING AFTER TWO BELLS."
+    }
+  ]
+}

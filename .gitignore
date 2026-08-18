@@ -1,0 +1,20 @@
+# Godot 4
+.godot/
+/android/
+export_presets.local.cfg
+
+# Build output (published by the deploy workflow, never committed)
+build/
+/dist/
+
+# Editor / OS noise
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Local Godot binaries pulled by scripts/dev_setup.sh
+/.tools/
+
+# Python bytecode from tools/
+__pycache__/
+*.pyc

@@ -1,0 +1,7 @@
+{
+  "display_name": "Harbourmaster Kesk",
+  "sprite": "harbormaster",
+  "dialogue": "harbormaster",
+  "behavior": "idle",
+  "notes": "Starts the ledger errand. Pays out once Mira has signed."
+}

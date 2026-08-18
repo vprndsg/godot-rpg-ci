@@ -1,0 +1,26 @@
+{
+  "id": "patron",
+  "speaker_default": "Odd",
+  "start": "open",
+  "nodes": {
+    "open": {
+      "goto_if": [
+        { "requires": { "ledger_paid": true }, "next": "paid" },
+        { "requires": { "ledger_started": true }, "next": "errand" }
+      ],
+      "speaker": "Odd",
+      "text": "Mind the third table. It has opinions about elbows.",
+      "next": ""
+    },
+    "errand": {
+      "speaker": "Odd",
+      "text": "Running for Kesk, are you? He's been at that ledger so long the ink's gone to sea.",
+      "next": ""
+    },
+    "paid": {
+      "speaker": "Odd",
+      "text": "Kesk paid out? Sit down. I want to hear how you managed it, and I want to hear it slowly.",
+      "next": ""
+    }
+  }
+}

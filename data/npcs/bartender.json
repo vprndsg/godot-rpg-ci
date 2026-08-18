@@ -1,0 +1,7 @@
+{
+  "display_name": "Mira Solvang",
+  "sprite": "bartender",
+  "dialogue": "bartender",
+  "behavior": "idle",
+  "notes": "Keeps the Salt & Sextant. Holds the second half of the harbourmaster's ledger errand."
+}

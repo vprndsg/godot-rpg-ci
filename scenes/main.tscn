@@ -1,0 +1,72 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+
+[node name="Main" type="Node"]
+script = ExtResource("1_main")
+
+[node name="Title" type="CanvasLayer" parent="."]
+layer = 50
+
+[node name="Backdrop" type="ColorRect" parent="Title"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.055, 0.07, 0.11, 1)
+
+[node name="Center" type="CenterContainer" parent="Title"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Box" type="VBoxContainer" parent="Title/Center"]
+layout_mode = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="Title/Center/Box"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.79, 0.42, 1)
+theme_override_font_sizes/font_size = 28
+text = "PORT AZURE"
+horizontal_alignment = 1
+
+[node name="Tagline" type="Label" parent="Title/Center/Box"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.68, 0.78, 1)
+theme_override_font_sizes/font_size = 11
+text = "a tile RPG built by Claude, headlessly"
+horizontal_alignment = 1
+
+[node name="StartHint" type="Label" parent="Title/Center/Box"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.88, 0.92, 1)
+theme_override_font_sizes/font_size = 13
+text = "press SPACE or ENTER to begin"
+horizontal_alignment = 1
+
+[node name="ContinueHint" type="Label" parent="Title/Center/Box"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.72, 0.62, 1)
+theme_override_font_sizes/font_size = 13
+text = "press C to continue your save"
+horizontal_alignment = 1
+
+[node name="Controls" type="Label" parent="Title/Center/Box"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
+theme_override_font_sizes/font_size = 9
+text = "WASD or arrows to move   ·   E or SPACE to talk"
+horizontal_alignment = 1
+
+[node name="Controls2" type="Label" parent="Title/Center/Box"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
+theme_override_font_sizes/font_size = 9
+text = "1-4 to pick a reply   ·   F5 to save"
+horizontal_alignment = 1

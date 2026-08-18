@@ -1,0 +1,27 @@
+{
+  "frame_size": [
+    16,
+    24
+  ],
+  "frames_per_direction": 4,
+  "directions": [
+    "down",
+    "left",
+    "right",
+    "up"
+  ],
+  "actors": {
+    "player": {
+      "row_block": 0
+    },
+    "bartender": {
+      "row_block": 1
+    },
+    "harbormaster": {
+      "row_block": 2
+    },
+    "villager": {
+      "row_block": 3
+    }
+  }
+}

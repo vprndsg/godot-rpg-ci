@@ -1,0 +1,72 @@
+{
+  "id": "port_azure_inn_upper",
+  "display_name": "The Salt & Sextant -- Rooms",
+  "legend": {
+    "<": "stairs_down",
+    "B": "bed",
+    "D": "door",
+    "F": "wood_floor_b",
+    "W": "wall_stone",
+    "^": "wall_top",
+    "f": "wood_floor",
+    "n": "window",
+    "r": "rug",
+    "t": "table",
+    "x": "crate"
+  },
+  "ground": [
+    "ffffffffffffffffff",
+    "FFFFFFFFFFFFFFFFFF",
+    "ffffffffffffffffff",
+    "FFFFFFFFFFFFFFFFFF",
+    "ffffffffffffffffff",
+    "FFFFFFFFFFFFFFFFFF",
+    "ffffffffffffffffff",
+    "FrrrrrrrrrrrrrrrrF",
+    "frrrrrrrrrrrrrrrrf",
+    "FFFFFFFFFFFFFFFFFF"
+  ],
+  "objects": [
+    "^^^^^^^^^^^^^^^^^^",
+    "W   W   W   W  x W",
+    "WB  WB  WB  WB   W",
+    "n   W   W   W    n",
+    "W  tW  tW  tW  t W",
+    "W   W   W   W    W",
+    "WWDWWWDWWWDWWWDWWW",
+    "W                W",
+    "W               <W",
+    "WWWWWWWWWWWWWWWWWW"
+  ],
+  "spawns": {
+    "start": [
+      16,
+      7
+    ],
+    "from_downstairs": [
+      16,
+      7
+    ]
+  },
+  "portals": [
+    {
+      "at": [
+        16,
+        8
+      ],
+      "to": "port_azure_inn_ground",
+      "spawn": "from_upstairs",
+      "prompt": "Back down"
+    }
+  ],
+  "npcs": [],
+  "signs": [
+    {
+      "at": [
+        15,
+        1
+      ],
+      "text": "Someone has scratched a tally into the crate lid. Forty-one marks."
+    }
+  ]
+}

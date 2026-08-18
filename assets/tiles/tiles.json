@@ -1,0 +1,43 @@
+{
+  "_comment": "Single source of truth for tiles. Used by tools/build_tileset.gd (bakes terrain.tres), scripts/tile_registry.gd (runtime), and tests/. Add a tile here + a draw function in tools/gen_art.py, then re-run both generators.",
+  "tile_size": 16,
+  "atlas": "res://assets/tiles/terrain.png",
+  "atlas_columns": 8,
+  "tiles": {
+    "grass":       { "atlas": [0, 0], "solid": false },
+    "grass_flower":{ "atlas": [1, 0], "solid": false },
+    "dirt":        { "atlas": [2, 0], "solid": false },
+    "stone_path":  { "atlas": [3, 0], "solid": false },
+    "water":       { "atlas": [4, 0], "solid": true  },
+    "sand":        { "atlas": [5, 0], "solid": false },
+    "tree":        { "atlas": [6, 0], "solid": true  },
+    "bush":        { "atlas": [7, 0], "solid": true  },
+
+    "wood_floor":  { "atlas": [0, 1], "solid": false },
+    "wood_floor_b":{ "atlas": [1, 1], "solid": false },
+    "stone_floor": { "atlas": [2, 1], "solid": false },
+    "rug":         { "atlas": [3, 1], "solid": false },
+    "wall_stone":  { "atlas": [4, 1], "solid": true  },
+    "wall_wood":   { "atlas": [5, 1], "solid": true  },
+    "wall_top":    { "atlas": [6, 1], "solid": true  },
+    "roof":        { "atlas": [7, 1], "solid": true  },
+
+    "door":        { "atlas": [0, 2], "solid": false },
+    "stairs_up":   { "atlas": [1, 2], "solid": false },
+    "stairs_down": { "atlas": [2, 2], "solid": false },
+    "counter":     { "atlas": [3, 2], "solid": true  },
+    "table":       { "atlas": [4, 2], "solid": true  },
+    "chair":       { "atlas": [5, 2], "solid": false },
+    "bed":         { "atlas": [6, 2], "solid": true  },
+    "fireplace":   { "atlas": [7, 2], "solid": true  },
+
+    "barrel":      { "atlas": [0, 3], "solid": true  },
+    "crate":       { "atlas": [1, 3], "solid": true  },
+    "sign":        { "atlas": [2, 3], "solid": true  },
+    "window":      { "atlas": [3, 3], "solid": true  },
+    "fence":       { "atlas": [4, 3], "solid": true  },
+    "lamp":        { "atlas": [5, 3], "solid": true  },
+    "shelf":       { "atlas": [6, 3], "solid": true  },
+    "void":        { "atlas": [7, 3], "solid": true  }
+  }
+}

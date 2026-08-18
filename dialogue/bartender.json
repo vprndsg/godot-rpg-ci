@@ -1,0 +1,83 @@
+{
+  "id": "bartender",
+  "speaker_default": "Mira",
+  "start": "open",
+  "nodes": {
+    "open": {
+      "goto_if": [
+        { "requires": { "ledger_signed": true }, "next": "after_signed" },
+        { "requires": { "ledger_started": true }, "next": "ledger" },
+        { "requires": { "met_mira": true }, "next": "regular" }
+      ],
+      "speaker": "Mira",
+      "text": "New face. Sit anywhere that isn't wet.",
+      "set": { "met_mira": true },
+      "next": "menu"
+    },
+    "regular": {
+      "speaker": "Mira",
+      "text": "Back again. Fire's lit, rooms are up the stairs, and I've heard every shipwreck story twice.",
+      "next": "menu"
+    },
+    "menu": {
+      "speaker": "Mira",
+      "text": "What'll it be?",
+      "choices": [
+        { "text": "What's upstairs?", "next": "rooms" },
+        { "text": "Heard anything worth hearing?", "next": "rumour" },
+        { "text": "Nothing, thanks.", "next": "" }
+      ]
+    },
+    "rooms": {
+      "speaker": "Mira",
+      "text": "Four rooms, four beds, one of them doesn't creak. Four marks a night and I don't ask names.",
+      "next": "menu"
+    },
+    "rumour": {
+      "speaker": "Mira",
+      "text": "Kesk down at the harbour has been muttering about his ledger for a week. Man could have walked up here in the time he's spent complaining.",
+      "next": "menu"
+    },
+    "ledger": {
+      "speaker": "Mira",
+      "text": "Kesk sent you. Of course he did.",
+      "next": "ledger_choice"
+    },
+    "ledger_choice": {
+      "speaker": "Mira",
+      "text": "He wants a signature. What he'll get is a signature and an opinion.",
+      "choices": [
+        { "text": "Hand her the ledger.", "next": "sign", "set": { "ledger_signed": true } },
+        { "text": "Ask what the opinion is.", "next": "opinion" }
+      ]
+    },
+    "opinion": {
+      "speaker": "Mira",
+      "text": "That harbour dues went up twice this year and the harbour did not.",
+      "next": "ledger_choice"
+    },
+    "sign": {
+      "speaker": "Mira",
+      "text": "There. Tell him it's signed under protest, and tell him the protest is in writing.",
+      "next": "sign_end"
+    },
+    "sign_end": {
+      "speaker": "Mira",
+      "text": "Go on, back down the hill. He'll be pretending he wasn't watching the door.",
+      "next": ""
+    },
+    "after_signed": {
+      "goto_if": [
+        { "requires": { "ledger_paid": true }, "next": "paid" }
+      ],
+      "speaker": "Mira",
+      "text": "Kesk's still waiting on that ledger. Downhill, can't miss him, he's the one shaped like a complaint.",
+      "next": ""
+    },
+    "paid": {
+      "speaker": "Mira",
+      "text": "He paid you? Then the day's already unusual. First one's on the house -- sit by the fire.",
+      "next": ""
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "display_name": "Odd Hallvard",
+  "sprite": "villager",
+  "dialogue": "patron",
+  "behavior": "wander",
+  "wander_radius": 1,
+  "notes": "Drinks by the hearth. His lines react to the ledger quest without advancing it."
+}

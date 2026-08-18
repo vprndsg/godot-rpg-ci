@@ -1,0 +1,52 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Validate and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-godot
+        with:
+          export-templates: "true"
+
+      - name: Import assets
+        run: tools/ci.sh import
+
+      - name: Check the generated files are up to date
+        # tiles.json and gen_art.py are the sources; terrain.png and
+        # terrain.tres are built from them. If regenerating changes anything,
+        # someone edited a source and forgot to re-run the generators.
+        run: |
+          tools/ci.sh generate
+          if ! git diff --quiet -- assets/; then
+            echo "::error::assets/ is stale. Run 'tools/ci.sh generate' and commit the result."
+            git diff --stat -- assets/
+            exit 1
+          fi
+          echo "generated assets are up to date"
+
+      - name: Run tests
+        run: tools/ci.sh test
+
+      - name: Build the web export
+        run: tools/ci.sh export
+
+      - name: Upload the playable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build-${{ github.sha }}
+          path: build/web
+          retention-days: 7
