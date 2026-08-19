@@ -36,6 +36,10 @@ whether a room works without ever opening an editor.
 - Coordinates are `[x, y]`, origin top-left. The grid is square even though
   the world draws isometric — the projection happens on the way to the screen
   and changes nothing about authoring a map.
+- `background` (optional, html hex like `"101c18"`) is what the camera sees
+  past the corners of the map. A diamond map cannot fill a rectangular view,
+  so pick something that reads as "beyond here" — open water off a coast,
+  unlit dark around a room. Defaults to a near-black slate.
 - `spawns` names arrival points. Portals in other maps refer to them by name.
 - `portals` fire when the player steps on the tile. Set `"interact": true` to
   require a key press instead, and give it a `prompt`.

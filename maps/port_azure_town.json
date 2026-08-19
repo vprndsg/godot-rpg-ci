@@ -1,6 +1,7 @@
 {
   "id": "port_azure_town",
   "display_name": "Port Azure",
+  "background": "101c18",
   "legend": {
     ",": "grass_flower",
     ".": "grass",

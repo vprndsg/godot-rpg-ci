@@ -19,8 +19,17 @@ const LAYERS: PackedStringArray = ["ground", "objects"]
 
 const FACINGS: PackedStringArray = ["down", "left", "right", "up"]
 
+## What shows beyond the edge of the world.
+##
+## A map is a diamond on screen and the camera is a rectangle, so the corners
+## of the view see past the map however tight the limits are -- that is a
+## property of the projection, not a bug to clamp away. Maps therefore choose
+## what is out there: open water off a coast, unlit night around a room.
+const DEFAULT_BACKGROUND := "0d151c"
+
 var id: String = ""
 var display_name: String = ""
+var background: Color = Color.html(DEFAULT_BACKGROUND)
 var legend: Dictionary = {}
 var layers: Dictionary = {}          # layer name -> PackedStringArray of rows
 var spawns: Dictionary = {}          # spawn id -> Vector2i
@@ -86,6 +95,12 @@ static func load_map(map_id: String) -> MapData:
 func _from_dict(raw: Dictionary) -> void:
 	display_name = String(raw.get("display_name", id))
 	legend = raw.get("legend", {})
+
+	var colour := String(raw.get("background", DEFAULT_BACKGROUND))
+	if Color.html_is_valid(colour):
+		background = Color.html(colour)
+	else:
+		parse_errors.append("background '%s' is not an html colour like '0d151c'" % colour)
 
 	for layer_name: String in LAYERS:
 		var rows: PackedStringArray = []

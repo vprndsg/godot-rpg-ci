@@ -27,6 +27,8 @@ func enter(map_id: String, spawn_id: String = "start") -> MapData:
 	GameState.current_spawn = spawn_id
 	player.global_position = loader.spawn_position(spawn_id)
 	_fit_camera(map)
+	# What the camera sees past the corners of a diamond-shaped map.
+	RenderingServer.set_default_clear_color(map.background)
 	return map
 
 
