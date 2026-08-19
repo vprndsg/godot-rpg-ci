@@ -1,7 +1,7 @@
 # Port Azure
 
-A SNES-era tile RPG in Godot 4, built and validated entirely by headless
-GitHub Actions runners. Nothing runs on your machine and nothing runs in the
+A SNES-era isometric tile RPG in Godot 4, built and validated entirely by
+headless GitHub Actions runners. Nothing runs on your machine and nothing runs in the
 cloud between builds — the runner wakes up, builds, publishes, and disappears.
 
 **Play it:** https://vprndsg.github.io/godot-rpg-ci/ *(live once Pages is enabled — see setup below)*
@@ -106,7 +106,7 @@ data/npcs/*.json      who each character is
 dialogue/*.json       what they say, as a node graph with flags
 assets/tiles/         tiles.json is the source of truth; the png and tres are generated
 assets/sprites/       character sheet, also generated
-scripts/              game code; map_data.gd holds the map validator
+scripts/              game code; map_data.gd validates maps, iso.gd projects them
 scenes/               player, npc, dialogue box, world, title
 tests/                the suite that gates every merge
 tools/                gen_art.py, build_tileset.gd, setup_input.gd, ci.sh
@@ -117,6 +117,14 @@ Content is data, not scenes. A `TileMapLayer` stores its cells as a binary
 blob that cannot be read or reviewed in a diff, which makes it useless to an
 agent working headlessly — so maps are ASCII and `scripts/map_loader.gd` builds
 the tile layers at runtime.
+
+The world draws isometric — 32×16 diamonds on a diamond grid — but the maps
+stay square. Isometric is a projection applied on the way to the screen, so a
+map is still a rectangle of characters you can read in a pull request, and
+walkability is still 4-connected. `scripts/iso.gd` is the whole of it, and
+`tests/test_iso.gd` checks it against Godot's own tile layout. The movement
+keys drive grid axes, so `D` walks down-right and two keys together give you
+the screen diagonals.
 
 ## What the tests actually catch
 

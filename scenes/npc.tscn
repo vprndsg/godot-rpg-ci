@@ -4,11 +4,11 @@
 [ext_resource type="Script" path="res://scripts/actor_sprite.gd" id="2_sprite"]
 [ext_resource type="Texture2D" path="res://assets/sprites/actors.png" id="3_sheet"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
-size = Vector2(11, 9)
+[sub_resource type="ConvexPolygonShape2D" id="ConvexPolygonShape2D_body"]
+points = PackedVector2Array(0, -3, 6, 0, 0, 3, -6, 0)
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_talk"]
-size = Vector2(16, 16)
+[sub_resource type="ConvexPolygonShape2D" id="ConvexPolygonShape2D_talk"]
+points = PackedVector2Array(0, -8, 16, 0, 0, 8, -16, 0)
 
 [node name="Npc" type="CharacterBody2D"]
 collision_layer = 4
@@ -24,8 +24,7 @@ script = ExtResource("2_sprite")
 actor = "villager"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-position = Vector2(0, 2)
-shape = SubResource("RectangleShape2D_body")
+shape = SubResource("ConvexPolygonShape2D_body")
 
 [node name="Interactable" type="Area2D" parent="."]
 collision_layer = 8
@@ -33,4 +32,4 @@ collision_mask = 0
 monitoring = false
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Interactable"]
-shape = SubResource("RectangleShape2D_talk")
+shape = SubResource("ConvexPolygonShape2D_talk")

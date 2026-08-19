@@ -134,6 +134,153 @@ class Canvas:
 
 
 # --------------------------------------------------------------------------
+# isometric geometry -- the Python half of scripts/iso.gd
+# --------------------------------------------------------------------------
+
+_GEOMETRY = {}
+
+
+def geometry():
+    """(tile_w, tile_h, cell_w, cell_h) read from assets/tiles/tiles.json.
+
+    Read rather than hardcoded, because the registry is the source of truth
+    for the grid's shape and three separate renderers have to agree with the
+    engine about it.
+    """
+    if not _GEOMETRY:
+        import json
+        reg = json.load(open(os.path.join(ROOT, "assets/tiles/tiles.json")))
+        tw, th = reg["tile_size"]
+        cw, ch = reg["cell_size"]
+        _GEOMETRY["v"] = (int(tw), int(th), int(cw), int(ch))
+    return _GEOMETRY["v"]
+
+
+def footprint_top():
+    """First row of the ground diamond inside a cell. The diamond is centred
+    vertically, so the rows above it are headroom for tall art and the rows
+    below it are the padding that keeps it centred."""
+    _, th, _, ch = geometry()
+    return (ch - th) // 2
+
+
+def cell_centre(cx, cy, tw=None, th=None):
+    """Screen position of a cell's centre. Mirrors Iso.cell_centre()."""
+    if tw is None:
+        tw, th = geometry()[:2]
+    return ((cx - cy) * tw // 2 + tw // 2, (cx + cy) * th // 2 + th // 2)
+
+
+def diamond_span(y, w, h):
+    """(x0, width) of the ground diamond's row y, or None outside it.
+
+    Widths run 2, 6, 10 ... and back down again. That is the sequence that
+    tiles seamlessly: offset a second diamond by (w/2, h/2) and its rows
+    interlock with this one's exactly, leaving neither a gap nor an overlap.
+    It also means a diamond is two columns narrower than its own cell -- the
+    outermost column on each side belongs to the neighbour.
+    """
+    if not 0 <= y < h:
+        return None
+    step = w // h
+    d = min(y, h - 1 - y)
+    return (w // 2 - 1 - step * d, 2 + 2 * step * d)
+
+
+def shade(colour, amount):
+    """Lighten (+) or darken (-) a colour, keeping its alpha.
+
+    Lets a painter detail a surface relative to whatever colour that surface
+    already is, so the same brick or plank routine works on the lit face and
+    the shadowed one without flattening the difference between them.
+    """
+    return tuple(max(0, min(255, v + amount)) for v in colour[:3]) + (colour[3],)
+
+
+def blob(c, ox, oy, cx, cy, rx, ry, colour):
+    """A filled ellipse. Foliage is a rounded mass, and stacking flat diamonds
+    to fake one just looks like a stack of flat diamonds."""
+    for y in range(cy - ry, cy + ry + 1):
+        for x in range(cx - rx, cx + rx + 1):
+            dx = (x - cx) / float(rx)
+            dy = (y - cy) / float(ry)
+            if dx * dx + dy * dy <= 1.0:
+                c.set(ox + x, oy + y, colour)
+
+
+def in_diamond(x, y, w=None, h=None):
+    """Is this pixel on the tile's own ground, rather than a neighbour's?"""
+    if w is None:
+        w, h = geometry()[:2]
+    span = diamond_span(y, w, h)
+    return span is not None and span[0] <= x < span[0] + span[1]
+
+
+def diamond_pixels(w, h):
+    """Every (x, y) inside the ground diamond, top row first."""
+    for y in range(h):
+        x0, width = diamond_span(y, w, h)
+        for x in range(x0, x0 + width):
+            yield x, y
+
+
+def diamond_floor(w, h):
+    """Column -> lowest row of the diamond, for extruding a block downwards."""
+    floor = {}
+    for y in range(h):
+        x0, width = diamond_span(y, w, h)
+        for x in range(x0, x0 + width):
+            floor[x] = y
+    return floor
+
+
+def fill_diamond(c, ox, oy, colour, w=None, h=None):
+    """One flat diamond, its top-left corner at (ox, oy)."""
+    if w is None:
+        w, h = geometry()[:2]
+    for y in range(h):
+        x0, width = diamond_span(y, w, h)
+        c.rect(ox + x0, oy + y, width, 1, colour)
+
+
+def diamond_edge(c, ox, oy, colour, side, w=None, h=None, inset=0):
+    """Trace one of the diamond's four edges.
+
+    `side` is "nw", "ne", "se" or "sw" -- the compass of the screen, so "ne"
+    is the edge a tile shares with the cell one step north on the grid.
+    """
+    if w is None:
+        w, h = geometry()[:2]
+    for y in range(h):
+        x0, width = diamond_span(y, w, h)
+        top = y < h // 2
+        if side in ("nw", "sw"):
+            x = x0 + inset
+        else:
+            x = x0 + width - 1 - inset
+        if (side in ("nw", "ne")) == top:
+            c.set(ox + x, oy + y, colour)
+
+
+def prism(c, ox, oy, height, top, left, right, w=None, h=None):
+    """A block standing on the ground diamond whose top-left is (ox, oy).
+
+    Draws the lit top face first, then extrudes both visible sides straight
+    down to the footprint, so the silhouette always ends exactly on the cell
+    the block occupies however tall it is.
+    """
+    if w is None:
+        w, h = geometry()[:2]
+    fill_diamond(c, ox, oy - height, top, w, h)
+    if height <= 0:
+        return
+    floor = diamond_floor(w, h)
+    for x, base in floor.items():
+        face = left if x < w // 2 else right
+        c.rect(ox + x, oy - height + base + 1, 1, height, face)
+
+
+# --------------------------------------------------------------------------
 # PNG reading -- 8-bit RGBA/RGB only, which is all this project writes
 # --------------------------------------------------------------------------
 

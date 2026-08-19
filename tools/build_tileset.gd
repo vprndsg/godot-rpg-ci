@@ -23,10 +23,17 @@ func build() -> int:
 		return 1
 
 	var texture: Texture2D = load(atlas_path)
-	var ts := TileRegistry.tile_size()
+	var tile := TileRegistry.tile_size()
+	var cell := TileRegistry.cell_size()
 
 	var tile_set := TileSet.new()
-	tile_set.tile_size = Vector2i(ts, ts)
+	# The diamond grid itself. Godot lays cells out from tile_size alone, so
+	# this is the one place the world's shape is decided; scripts/iso.gd
+	# reproduces the same layout for everything outside the TileMapLayers.
+	tile_set.tile_shape = TileSet.TILE_SHAPE_ISOMETRIC
+	tile_set.tile_layout = TileSet.TILE_LAYOUT_DIAMOND_DOWN
+	tile_set.tile_offset_axis = TileSet.TILE_OFFSET_AXIS_HORIZONTAL
+	tile_set.tile_size = tile
 	tile_set.add_physics_layer(0)
 	# Layer 1 == "world" in project.godot; the player and NPCs mask against it.
 	tile_set.set_physics_layer_collision_layer(0, 1)
@@ -34,16 +41,15 @@ func build() -> int:
 
 	var source := TileSetAtlasSource.new()
 	source.texture = texture
-	source.texture_region_size = Vector2i(ts, ts)
+	# A cell is taller than the diamond so tall art has headroom. Godot draws
+	# the region centred on the cell and tiles.json pads the bottom to match,
+	# so the footprint lands on the diamond with texture_origin left at zero.
+	source.texture_region_size = cell
 	# Register the source before creating tiles: TileData only grows physics
 	# layers once its source belongs to a TileSet that has them.
 	tile_set.add_source(source, 0)
 
-	var half := ts / 2.0
-	var box := PackedVector2Array([
-		Vector2(-half, -half), Vector2(half, -half),
-		Vector2(half, half), Vector2(-half, half),
-	])
+	var footprint := Iso.diamond()
 
 	var solid_count := 0
 	for tile_name: String in TileRegistry.names():
@@ -56,12 +62,14 @@ func build() -> int:
 			return 1
 		source.create_tile(coords)
 		var data: TileData = source.get_tile_data(coords, 0)
-		# Sort tall props by the ground they stand on, so a player north of a
-		# tree draws behind it and a player south of it draws in front.
-		data.y_sort_origin = int(half)
+		# Zero, not half a cell: a tile's position is already the centre of the
+		# ground it stands on, and screen depth in an isometric grid is exactly
+		# that centre. So a player one cell in front of a tree sorts in front of
+		# it, and the tree's 24px of canopy never votes on the ordering.
+		data.y_sort_origin = 0
 		if TileRegistry.is_solid(tile_name):
 			data.add_collision_polygon(0)
-			data.set_collision_polygon_points(0, 0, box)
+			data.set_collision_polygon_points(0, 0, footprint)
 			solid_count += 1
 
 	for tile_name: String in TileRegistry.names():

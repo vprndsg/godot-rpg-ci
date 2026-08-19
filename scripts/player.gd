@@ -3,11 +3,20 @@
 ## Free 8-direction movement against the tileset's baked collision, plus an
 ## "Interactor" area held one tile ahead so pressing interact talks to whatever
 ## you are facing.
+##
+## The movement keys are **grid** axes, not screen axes: `move_right` is grid
+## +x, which runs down-right across the diamonds. That is what keeps one key
+## equal to one direction the map understands -- walkability, reachability and
+## NPC facings are all 4-connected on the grid -- and pressing two keys still
+## gives you the screen-aligned diagonals in between.
 class_name Player
 extends CharacterBody2D
 
-const SPEED := 68.0
-const REACH := 11.0
+## Tiles per second. Screen speed follows from the projection, so walking the
+## flat axis of a diamond covers pixels faster without covering more ground.
+const SPEED := 4.25
+## How far ahead of the player the interactor sits, in tiles.
+const REACH := 0.72
 
 signal interacted(target: Node)
 
@@ -18,17 +27,19 @@ var input_locked := false
 
 
 func _physics_process(_delta: float) -> void:
-	var dir := Vector2.ZERO
+	var step := Vector2.ZERO
 	if not input_locked and not Dialogue.is_active() and not Router.is_travelling():
-		dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+		step = Input.get_vector("move_left", "move_right", "move_up", "move_down")
 
-	velocity = dir * SPEED
+	# `step` is in tiles; the projection turns it into pixels. Doing it in this
+	# order is what makes every direction cost the same amount of ground.
+	velocity = Iso.grid_vector(step) * SPEED
 	move_and_slide()
 
-	sprite.moving = dir != Vector2.ZERO
-	if dir != Vector2.ZERO:
-		sprite.facing = _facing_for(dir)
-	interactor.position = _facing_vector() * REACH
+	sprite.moving = step != Vector2.ZERO
+	if step != Vector2.ZERO:
+		sprite.facing = ActorSprite.facing_for(step)
+	interactor.position = Iso.grid_vector(_facing_step()) * REACH
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -73,16 +84,12 @@ func facing() -> String:
 
 func face(direction: String) -> void:
 	sprite.facing = direction
-	interactor.position = _facing_vector() * REACH
+	interactor.position = Iso.grid_vector(_facing_step()) * REACH
 
 
-func _facing_for(dir: Vector2) -> String:
-	if absf(dir.x) > absf(dir.y):
-		return "right" if dir.x > 0.0 else "left"
-	return "down" if dir.y > 0.0 else "up"
-
-
-func _facing_vector() -> Vector2:
+## The grid step the player is facing -- one cell north, south, east or west.
+## Project it to get anywhere on screen.
+func _facing_step() -> Vector2:
 	match sprite.facing:
 		"left": return Vector2.LEFT
 		"right": return Vector2.RIGHT

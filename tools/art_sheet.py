@@ -5,11 +5,15 @@
 
 Writes docs/art/atlas.png, docs/art/actors.png and docs/art/palette.png.
 
-The shipped art is 16x16 and illegible at 1:1. These sheets magnify it and
-name every piece, so an agent working headlessly can open one with an image
-viewer (Codex: `view_image`) and actually see what a painter drew. Committed
-on purpose -- GitHub then renders a before/after image diff on any pull
-request that touches the art.
+The shipped art is tiny and illegible at 1:1. These sheets magnify it and name
+every piece, so an agent working headlessly can open one with an image viewer
+(Codex: `view_image`) and actually see what a painter drew. Committed on
+purpose -- GitHub then renders a before/after image diff on any pull request
+that touches the art.
+
+Every tile is drawn with its ground diamond outlined. A tile whose art floats
+off that outline, or spills past it, is a tile that will not line up with its
+neighbours in the game.
 
 Pair it with tools/render_map.py, which shows the same tiles in context.
 """
@@ -20,7 +24,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from pixel import ROOT, Canvas, P, blit, draw_text, load_png, rgb, text_width
+from pixel import (
+    ROOT, Canvas, P, blit, diamond_span, draw_text, geometry, load_png, rgb,
+    text_width,
+)
 
 BG = rgb("14161c")
 PANEL = rgb("1d212b")
@@ -30,9 +37,12 @@ SOLID_MARK = rgb("d8654f")
 CHECK_A = rgb("2a2f3a")
 CHECK_B = rgb("22262f")
 
-TS = 16
-ZOOM = 6
+TW, TH, CW, CH = geometry()
+FOOT = (CH - TH) // 2
+DRAWN_H = FOOT + TH      # the cell rows a painter may use; the rest is padding
+ZOOM = 5
 ACTOR_ZOOM = 4
+FOOTPRINT = (255, 255, 255, 46)
 
 
 def checker(c, x, y, w, h, size=6):
@@ -40,6 +50,16 @@ def checker(c, x, y, w, h, size=6):
         for xx in range(w):
             odd = ((xx // size) + (yy // size)) % 2
             c.set(x + xx, y + yy, CHECK_A if odd else CHECK_B)
+
+
+def footprint(c, x, y, zoom):
+    """Outline where the ground diamond sits inside a magnified cell."""
+    for row in range(TH):
+        x0, width = diamond_span(row, TW, TH)
+        for col in (x0, x0 + width - 1):
+            for sy in range(zoom):
+                for sx in range(zoom):
+                    c.blend(x + col * zoom + sx, y + (FOOT + row) * zoom + sy, FOOTPRINT)
 
 
 def header(c, title, subtitle):
@@ -55,14 +75,16 @@ def build_atlas_sheet():
     names = sorted(reg["tiles"])
 
     cols = int(reg.get("atlas_columns", 8))
-    cell_w = TS * ZOOM + 14
-    cell_h = TS * ZOOM + 34
+    cell_w = TW * ZOOM + 14
+    cell_h = DRAWN_H * ZOOM + 34
     top = 46
     rows = (len(names) + cols - 1) // cols
 
     c = Canvas(cols * cell_w + 12, top + rows * cell_h + 12)
     c.rect(0, 0, c.w, c.h, BG)
-    header(c, "TILE ATLAS", "%d tiles - assets/tiles/tiles.json - red frame = blocks movement" % len(names))
+    header(c, "TILE ATLAS",
+           "%d tiles - %dx%d diamond in a %dx%d cell - faint outline = the ground it stands on - red frame = blocks movement"
+           % (len(names), TW, TH, CW, CH))
 
     for i, name in enumerate(names):
         info = reg["tiles"][name]
@@ -73,12 +95,13 @@ def build_atlas_sheet():
 
         c.rect(cx, cy, cell_w - 4, cell_h - 4, PANEL)
         px, py = cx + 7, cy + 5
-        checker(c, px, py, TS * ZOOM, TS * ZOOM)
-        blit(c, atlas, px, py, sx=ax * TS, sy=ay * TS, w=TS, h=TS, factor=ZOOM)
+        checker(c, px, py, TW * ZOOM, DRAWN_H * ZOOM)
+        blit(c, atlas, px, py, sx=ax * CW, sy=ay * CH, w=CW, h=DRAWN_H, factor=ZOOM)
+        footprint(c, px, py, ZOOM)
         if solid:
-            c.frame(px - 1, py - 1, TS * ZOOM + 2, TS * ZOOM + 2, SOLID_MARK)
+            c.frame(px - 1, py - 1, TW * ZOOM + 2, DRAWN_H * ZOOM + 2, SOLID_MARK)
 
-        label_y = py + TS * ZOOM + 5
+        label_y = py + DRAWN_H * ZOOM + 5
         draw_text(c, px, label_y, name, INK, scale_=2)
         meta = "%d,%d%s" % (ax, ay, "  SOLID" if solid else "")
         draw_text(c, px, label_y + 13, meta, SOLID_MARK if solid else DIM, scale_=1)

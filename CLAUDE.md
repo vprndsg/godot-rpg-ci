@@ -1,11 +1,49 @@
 # Port Azure
 
-A SNES-era tile RPG in Godot 4. There is no game engine running on anyone's
-desktop: every change is made by editing text files, validated by headless
-Godot in GitHub Actions, and published to GitHub Pages as a playable web build.
+A SNES-era **isometric** tile RPG in Godot 4. There is no game engine running
+on anyone's desktop: every change is made by editing text files, validated by
+headless Godot in GitHub Actions, and published to GitHub Pages as a playable
+web build.
 
 Assume you are running headless. You cannot open the editor, click a node, or
 look at a scene. Everything below exists so that you do not have to.
+
+## The world is isometric, the data is not
+
+A cell is `[x, y]` in a square ASCII grid. It always was and it still is.
+Isometric is a **projection** — applied when a cell becomes a screen position,
+and nowhere else. Nothing about authoring a map changes because of it:
+walkability is still 4-connected, the flood fill is still a flood fill, and a
+legend character is still one tile.
+
+```
+grid                      screen
+(0,0) (1,0) (2,0)              (0,0)
+(0,1) (1,1) (2,1)          (0,1)   (1,0)
+(0,2) (1,2) (2,2)      (0,2)  (1,1)   (2,0)
+                           (1,2)   (2,1)
+                               (2,2)
+```
+
+Three consequences worth holding on to:
+
+- **Grid +x runs down-right on screen; grid +y runs down-left.** So screen
+  depth is `x + y`, which is what orders the world. The movement keys drive
+  grid axes, not screen axes: `move_right` is grid +x. Press two at once for
+  the screen-aligned diagonals.
+- **`down`, `left`, `right`, `up`** — in map JSON, in NPC facings, in the
+  sprite sheet — name grid directions. On screen they are the four diagonals.
+  `down` and `right` come toward the camera and show a face; `up` and `left`
+  show a back.
+- **`scripts/iso.gd` is the only place the projection is written down** in
+  GDScript, and `tools/pixel.py` holds the same arithmetic for the renderers.
+  Never open-code `cell * 16` anywhere. `tests/test_iso.gd` pins `Iso` against
+  a real `TileMapLayer`, so if you change one you will hear about it.
+
+A tile is a 32×16 diamond drawn inside a 32×64 atlas cell. The extra height is
+headroom for walls, roofs and trees; `assets/tiles/tiles.json` documents the
+layout, and `tools/gen_art.py` gives you `ground()`, `block()` and
+`small_block()` so you never have to think about it.
 
 ## The loop
 
@@ -17,12 +55,13 @@ tools/ci.sh export     # web build into build/web/ (needs export templates)
 tools/ci.sh sheets     # re-render docs/art/ only (no Godot needed)
 ```
 
-**Working on art?** You cannot judge 16x16 pixels at 1:1 or a tile outside its
-map. Run `tools/ci.sh sheets`, then look at `docs/art/atlas.png` (every tile at
-6x, named) and `docs/art/map_port_azure_town.png` (the town composited from
-real map data). Never change a painter without regenerating and looking at the
-result. `AGENTS.md` has the full art loop and the current list of what needs
-improving.
+**Working on art?** You cannot judge a 32×16 diamond at 1:1, and you certainly
+cannot judge whether it lines up with its neighbours outside a map. Run
+`tools/ci.sh sheets`, then look at `docs/art/atlas.png` (every tile at 5x,
+named, with its ground diamond outlined) and
+`docs/art/map_port_azure_town.png` (the town composited from real map data).
+Never change a painter without regenerating and looking at the result.
+`AGENTS.md` has the full art loop and the current list of what needs improving.
 
 `tools/ci.sh test` is the gate. It fails on assertion failures **and** on any
 `SCRIPT ERROR` or `ERROR:` the engine prints, because Godot otherwise exits 0
@@ -51,8 +90,8 @@ maps/*.json          ASCII grids + a legend. One character per tile.
 data/npcs/*.json     display name, sprite, dialogue id, behaviour.
 dialogue/*.json      a node graph: text, choices, flags.
 assets/tiles/        tiles.json is the source; terrain.png and terrain.tres are generated.
-scripts/             game code. map_data.gd holds the validator.
-tools/pixel.py       canvas, PNG read/write, the palette. Shared by all renderers.
+scripts/             game code. map_data.gd holds the validator, iso.gd the projection.
+tools/pixel.py       canvas, PNG, palette, and the diamond primitives. Shared by all renderers.
 docs/art/            GENERATED contact sheets and map renders. Look at these.
 scenes/              player, npc, dialogue box, world, title. Nothing content-shaped.
 tests/               the suite. Add to it whenever you add a mechanic.
@@ -75,6 +114,11 @@ runtime.
 `assets/tiles/tiles.json`, draw it in `tools/gen_art.py`, run
 `tools/ci.sh generate`. The registry is the only place a coordinate is written
 down.
+
+**Never turn a cell into a position by hand.** `Iso.cell_centre()` and
+`MapData.world_position()` exist so the engine, the game code and the map
+renderer cannot drift apart about where a tile is. A stray `x * 16` puts a sign
+in a wall on one of the three and nowhere else.
 
 **Keep every layer of a map rectangular.** Every row of `ground` and `objects`
 must be the same length. The validator rejects ragged grids, because a short
@@ -101,7 +145,10 @@ You get these for free; do not re-implement them.
 - Every dialogue node is reachable from `start`, every jump lands on a real
   node, and every node can still reach an ending.
 - Every flag a conversation sets is read by some conversation.
-- The baked tileset matches `tiles.json`, tile for tile and solid for solid.
+- The baked tileset matches `tiles.json`, tile for tile and solid for solid,
+  and is still an isometric diamond grid of the size the registry declares.
+- `scripts/iso.gd` still projects cells exactly where a real `TileMapLayer`
+  puts them, in both directions.
 
 ## Writing style for the game itself
 

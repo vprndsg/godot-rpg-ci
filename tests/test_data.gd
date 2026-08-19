@@ -44,12 +44,48 @@ func test_atlas_image_is_big_enough_for_every_tile() -> void:
 	var texture: Texture2D = load(TileRegistry.atlas_path())
 	if not ok(texture != null, "could not load %s" % TileRegistry.atlas_path()):
 		return
-	var ts := TileRegistry.tile_size()
+	var cell := TileRegistry.cell_size()
 	for tile_name: String in TileRegistry.names():
 		var coords := TileRegistry.atlas_coords(tile_name)
-		ok((coords.x + 1) * ts <= texture.get_width() and (coords.y + 1) * ts <= texture.get_height(),
+		ok((coords.x + 1) * cell.x <= texture.get_width()
+				and (coords.y + 1) * cell.y <= texture.get_height(),
 			"tile '%s' at %s falls outside the %dx%d atlas -- re-run tools/gen_art.py"
 				% [tile_name, coords, texture.get_width(), texture.get_height()])
+
+
+## The world's shape lives in three places -- tiles.json, the baked tileset and
+## scripts/iso.gd -- and only the first is edited by hand. This is the check
+## that the other two followed. A tileset that quietly reverted to square tiles
+## still loads, still draws, and puts every wall in the wrong place.
+func test_tileset_is_an_isometric_diamond_grid() -> void:
+	var tile_set: TileSet = load(TILESET_PATH)
+	if not ok(tile_set != null, "could not load %s" % TILESET_PATH):
+		return
+	equal(tile_set.tile_shape, TileSet.TILE_SHAPE_ISOMETRIC,
+		"the baked tileset is not isometric -- re-run tools/build_tileset.gd")
+	equal(tile_set.tile_layout, TileSet.TILE_LAYOUT_DIAMOND_DOWN,
+		"the baked tileset uses a layout scripts/iso.gd does not reproduce")
+	equal(tile_set.tile_offset_axis, TileSet.TILE_OFFSET_AXIS_HORIZONTAL,
+		"the baked tileset offsets on the wrong axis")
+	equal(tile_set.tile_size, TileRegistry.tile_size(),
+		"baked tile size differs from tiles.json")
+
+	var source: TileSetAtlasSource = tile_set.get_source(0)
+	if not ok(source != null, "%s has no atlas source 0" % TILESET_PATH):
+		return
+	equal(source.texture_region_size, TileRegistry.cell_size(),
+		"baked atlas cell differs from tiles.json")
+
+	# tiles.json pads each cell so the ground diamond ends up centred in it.
+	# That is the whole reason no offset is needed, so a non-zero one here
+	# means someone changed the cell layout without changing the padding.
+	for tile_name: String in TileRegistry.names():
+		var data: TileData = source.get_tile_data(TileRegistry.atlas_coords(tile_name), 0)
+		if data == null:
+			continue
+		equal(data.texture_origin, Vector2i.ZERO,
+			"tile '%s' needs a texture offset; the footprint is no longer centred in its cell"
+				% tile_name)
 
 
 func test_actor_sheet_covers_every_actor() -> void:

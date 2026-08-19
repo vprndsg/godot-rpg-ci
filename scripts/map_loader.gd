@@ -101,8 +101,6 @@ func _paint(layer: TileMapLayer, map: MapData, layer_name: String) -> void:
 
 
 func _spawn_entities(map: MapData) -> void:
-	var ts := TileRegistry.tile_size()
-
 	for entry: Dictionary in map.npcs:
 		var npc_id := String(entry.get("npc", ""))
 		var def := Npc.load_def(npc_id)
@@ -125,9 +123,7 @@ func _spawn_entities(map: MapData) -> void:
 		sign_node.collision_mask = 0
 		sign_node.position = map.world_position(entry.get("at", Vector2i.ZERO))
 		var shape := CollisionShape2D.new()
-		var rect := RectangleShape2D.new()
-		rect.size = Vector2(ts, ts)
-		shape.shape = rect
+		shape.shape = _footprint_shape()
 		sign_node.add_child(shape)
 		sign_node.configure(String(entry.get("text", "")))
 		sorted.add_child(sign_node)
@@ -140,10 +136,8 @@ func _spawn_entities(map: MapData) -> void:
 		portal.monitoring = true
 		portal.position = map.world_position(entry.get("at", Vector2i.ZERO))
 		var shape := CollisionShape2D.new()
-		var rect := RectangleShape2D.new()
 		# Slightly inset so you have to actually step onto the tile.
-		rect.size = Vector2(ts - 4, ts - 4)
-		shape.shape = rect
+		shape.shape = _footprint_shape(0.78)
 		portal.add_child(shape)
 		portal.configure(
 			String(entry.get("to", "")),
@@ -152,6 +146,14 @@ func _spawn_entities(map: MapData) -> void:
 			bool(entry.get("interact", false))
 		)
 		sorted.add_child(portal)
+
+
+## One cell's worth of ground, as a shape. Signs and portals occupy a tile, and
+## a tile is a diamond -- a square here would poke into the four neighbours.
+func _footprint_shape(shrink: float = 1.0) -> ConvexPolygonShape2D:
+	var shape := ConvexPolygonShape2D.new()
+	shape.points = Iso.diamond(shrink)
+	return shape
 
 
 ## Where the player should stand when arriving at this map.

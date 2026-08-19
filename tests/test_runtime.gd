@@ -54,8 +54,7 @@ func test_player_spawns_somewhere_walkable() -> void:
 			fail("could not boot into '%s'" % map_id)
 			continue
 		var map := world.loader.current
-		var ts := TileRegistry.tile_size()
-		var cell := Vector2i(int(world.player.global_position.x / ts), int(world.player.global_position.y / ts))
+		var cell := MapData.cell_at(world.player.global_position)
 		ok(map.is_walkable(cell),
 			"player spawned inside a solid tile on '%s' at cell %s" % [map_id, cell])
 		await after_each()
@@ -79,10 +78,10 @@ func test_walls_stop_the_player() -> void:
 	if world == null:
 		return
 	var map := world.loader.current
-	var ts := TileRegistry.tile_size()
 
 	# Find a walkable cell with a solid tile directly east of it, then try to
-	# walk east through it.
+	# walk east through it. East is the grid's +x, which `move_right` drives
+	# and which runs down-right across the screen.
 	var from := Vector2i(-1, -1)
 	for y: int in map.height:
 		for x: int in map.width - 1:
@@ -96,16 +95,18 @@ func test_walls_stop_the_player() -> void:
 
 	world.player.global_position = map.world_position(from)
 	await physics_frames(2)
-	var before := world.player.global_position.x
+	# Measured in tiles, not pixels: a screen distance means different things
+	# in different directions once the world is projected.
+	var before := Iso.screen_to_grid(world.player.global_position).x
 
 	Input.action_press("move_right")
 	await physics_frames(20)
 	Input.action_release("move_right")
 	await physics_frames(2)
 
-	var travelled := world.player.global_position.x - before
-	ok(travelled < float(ts),
-		"player walked %.1fpx east through a solid tile at %s on '%s'" % [travelled, from + Vector2i.RIGHT, map.id])
+	var travelled := Iso.screen_to_grid(world.player.global_position).x - before
+	ok(travelled < 1.0,
+		"player walked %.2f tiles east through a solid tile at %s on '%s'" % [travelled, from + Vector2i.RIGHT, map.id])
 
 
 func test_open_ground_lets_the_player_move() -> void:
@@ -116,6 +117,8 @@ func test_open_ground_lets_the_player_move() -> void:
 	var spawn := map.primary_spawn()
 
 	# Pick a direction that is open for two tiles so the walk is unambiguous.
+	# Each movement action drives one grid axis, so the cell a key leads to is
+	# exactly the cell the walkability check looks at.
 	var options := {
 		"move_right": Vector2i.RIGHT, "move_left": Vector2i.LEFT,
 		"move_down": Vector2i.DOWN, "move_up": Vector2i.UP,
@@ -126,13 +129,13 @@ func test_open_ground_lets_the_player_move() -> void:
 			continue
 		world.player.global_position = map.world_position(spawn)
 		await physics_frames(2)
-		var before := world.player.global_position
+		var before := Iso.screen_to_grid(world.player.global_position)
 		Input.action_press(action)
 		await physics_frames(20)
 		Input.action_release(action)
 		await physics_frames(2)
-		var moved := world.player.global_position.distance_to(before)
-		ok(moved > 8.0, "player barely moved (%.1fpx) walking %s across open ground" % [moved, action])
+		var moved := Iso.screen_to_grid(world.player.global_position).distance_to(before)
+		ok(moved > 0.5, "player barely moved (%.2f tiles) walking %s across open ground" % [moved, action])
 		return
 	fail("spawn on '%s' has no direction with two clear tiles" % map.id)
 
@@ -230,10 +233,7 @@ func test_doors_move_the_player_to_the_other_side() -> void:
 			if not ok(world.loader.current != null and world.loader.current.id == target,
 					"door from '%s' did not land on '%s'" % [map_id, target]):
 				continue
-			var ts := TileRegistry.tile_size()
-			var cell := Vector2i(
-				int(world.player.global_position.x / ts),
-				int(world.player.global_position.y / ts))
+			var cell := MapData.cell_at(world.player.global_position)
 			ok(world.loader.current.is_walkable(cell),
 				"door from '%s' drops the player into a wall at %s on '%s'" % [map_id, cell, target])
 

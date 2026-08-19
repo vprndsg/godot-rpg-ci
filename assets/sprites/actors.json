@@ -10,6 +10,7 @@
     "right",
     "up"
   ],
+  "foot_row": 22,
   "actors": {
     "player": {
       "row_block": 0

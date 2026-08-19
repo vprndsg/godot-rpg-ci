@@ -36,13 +36,17 @@ func _on_map_requested(map_id: String, spawn_id: String) -> void:
 
 ## Keep the camera inside the map so small interiors do not show the void.
 func _fit_camera(map: MapData) -> void:
-	var ts := TileRegistry.tile_size()
-	camera.limit_left = 0
-	camera.limit_top = 0
-	camera.limit_right = map.width * ts
-	camera.limit_bottom = map.height * ts
+	# A diamond grid is not the rectangle its cell counts suggest: it leans
+	# left as it descends, so the far corner of a tall map sits at negative x.
+	var bounds := Iso.grid_bounds(Vector2i(map.width, map.height))
+	camera.limit_left = int(bounds.position.x)
+	# Tall tiles draw above the cell they stand on, so give the back row its
+	# headroom rather than slicing the tops off the far wall.
+	camera.limit_top = int(bounds.position.y) - TileRegistry.footprint_top()
+	camera.limit_right = int(bounds.end.x)
+	camera.limit_bottom = int(bounds.end.y)
 
 	var view := get_viewport_rect().size
 	# A map narrower than the screen would jitter against its own limits;
 	# centre it instead of clamping.
-	camera.position_smoothing_enabled = map.width * ts > view.x and map.height * ts > view.y
+	camera.position_smoothing_enabled = bounds.size.x > view.x and bounds.size.y > view.y

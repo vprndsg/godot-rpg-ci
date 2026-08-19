@@ -59,8 +59,13 @@ smallest useful one:
 The cell must be walkable, reachable from the spawn, and not shared with
 another NPC. The validator checks all three.
 
-**Talking range is one tile.** The player stands on an adjacent cell, faces the
-NPC, and presses interact. So an NPC behind a solid counter cannot be talked
+`facing` names a **grid** direction, not a screen one: `down` is +y and
+`right` is +x, and both of those turn toward the camera in the isometric
+projection. Those are the two that show a face, so pick one of them for
+anyone who should look like they are watching the room.
+
+**Talking range is one tile.** The player stands on one of the four adjacent
+cells, faces the NPC, and presses interact. So an NPC behind a solid counter cannot be talked
 to across it — put them at the open end of the bar, or leave a gap. This is the
 single most common mistake; `test_facing_an_interactable_finds_it` catches it.
 

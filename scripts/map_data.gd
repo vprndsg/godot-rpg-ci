@@ -200,9 +200,16 @@ func primary_spawn() -> Vector2i:
 	return Vector2i(-1, -1)
 
 
+## Where a cell sits on screen. Grid coordinates are square; the diamond only
+## happens here, on the way out. See scripts/iso.gd.
 func world_position(cell: Vector2i) -> Vector2:
-	var ts := TileRegistry.tile_size()
-	return Vector2(cell.x * ts + ts / 2.0, cell.y * ts + ts / 2.0)
+	return Iso.cell_centre(Vector2(cell))
+
+
+## The cell a screen position stands in -- the inverse of world_position().
+## Static because it needs nothing from the map, but named as a pair with it.
+static func cell_at(pos: Vector2) -> Vector2i:
+	return Iso.cell_at(pos)
 
 
 # --------------------------------------------------------------------------

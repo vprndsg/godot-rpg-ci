@@ -33,11 +33,16 @@ whether a room works without ever opening an editor.
   so the player walks behind a tree and in front of it correctly.
 - A space in a layer means "nothing here". Every other character must be in the
   legend, and the legend must not define characters no layer uses.
-- Coordinates are `[x, y]`, origin top-left.
+- Coordinates are `[x, y]`, origin top-left. The grid is square even though
+  the world draws isometric — the projection happens on the way to the screen
+  and changes nothing about authoring a map.
 - `spawns` names arrival points. Portals in other maps refer to them by name.
 - `portals` fire when the player steps on the tile. Set `"interact": true` to
   require a key press instead, and give it a `prompt`.
-- `facing` is one of `down`, `left`, `right`, `up`.
+- `facing` is one of `down`, `left`, `right`, `up`. These name **grid**
+  directions: `down` is +y, `right` is +x. On screen they come out as the four
+  diagonals, and `down`/`right` are the two that face the camera — so an NPC
+  meant to be looking at the player wants one of those.
 
 Tile names come from `assets/tiles/tiles.json` — read it first, and use
 `"solid": true` there to know what blocks movement. Do not invent tile names;
@@ -94,10 +99,16 @@ big maps are unreviewable and the validator caps them at 256.
 1. Add an entry to `assets/tiles/tiles.json` with a free `atlas` cell and the
    right `solid` flag.
 2. Add a `t_<name>` painter to `tools/gen_art.py` and register it in `PAINTERS`.
-   The existing painters show the idiom: fill, speckle with `noise()` so it is
-   deterministic, then draw shapes with `rect`/`hline`/`vline`.
+   The world is isometric, so build from the helpers at the top of that file
+   rather than from raw rectangles: `ground()` for flat terrain, `block()` for
+   a full-cell solid, `small_block()` for furniture, `foot_shadow()` under a
+   prop, `axis_line()` for anything lying along the grid. Speckle with
+   `noise()`, never `random`, so the output stays byte-identical.
 3. `tools/ci.sh generate` — this redraws `terrain.png` and rebakes
    `terrain.tres`. Commit all three files.
-4. `tools/ci.sh test`. The data suite checks the bake matches the registry.
+4. **Look at `docs/art/atlas.png`.** Your tile is drawn with its ground diamond
+   outlined; art that floats above the outline or spills past it will not line
+   up with its neighbours. `AGENTS.md` has the full art loop.
+5. `tools/ci.sh test`. The data suite checks the bake matches the registry.
 
 Never write an atlas coordinate anywhere except `tiles.json`.

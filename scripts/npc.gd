@@ -7,7 +7,8 @@ class_name Npc
 extends CharacterBody2D
 
 const DEFS_DIR := "res://data/npcs"
-const WANDER_SPEED := 22.0
+## Tiles per second, like Player.SPEED -- an amble, not a march.
+const WANDER_SPEED := 1.4
 
 @onready var sprite: ActorSprite = $Sprite
 
@@ -92,21 +93,26 @@ func _physics_process(delta: float) -> void:
 		_wait = _rng.randf_range(0.8, 2.6)
 		return
 
-	var dir := global_position.direction_to(_target)
-	velocity = dir * WANDER_SPEED
+	var step := _grid_step_to(_target)
+	velocity = Iso.grid_vector(step) * WANDER_SPEED
 	move_and_slide()
 	sprite.moving = true
-	sprite.facing = "right" if absf(dir.x) > absf(dir.y) and dir.x > 0.0 \
-		else ("left" if absf(dir.x) > absf(dir.y) else ("down" if dir.y > 0.0 else "up"))
+	sprite.facing = ActorSprite.facing_for(step)
 
 
 func _pick_target() -> void:
-	var ts := TileRegistry.tile_size()
+	# Wander in whole cells: the radius is a number of tiles, and it should
+	# stay one however the grid is projected.
 	var offset := Vector2(
 		_rng.randi_range(-wander_radius, wander_radius),
 		_rng.randi_range(-wander_radius, wander_radius)
-	) * float(ts)
-	_target = Vector2(home_cell.x * ts + ts / 2.0, home_cell.y * ts + ts / 2.0) + offset
+	)
+	_target = Iso.cell_centre(Vector2(home_cell) + offset)
+
+
+## Unit step in grid space from here to a point on screen.
+func _grid_step_to(point: Vector2) -> Vector2:
+	return (Iso.screen_to_grid(point) - Iso.screen_to_grid(global_position)).normalized()
 
 
 ## Called by Player when the player presses interact while facing this NPC.
@@ -117,8 +123,4 @@ func interact(player: Player) -> void:
 
 
 func _face_toward(point: Vector2) -> void:
-	var d := global_position.direction_to(point)
-	if absf(d.x) > absf(d.y):
-		sprite.facing = "right" if d.x > 0.0 else "left"
-	else:
-		sprite.facing = "down" if d.y > 0.0 else "up"
+	sprite.facing = ActorSprite.facing_for(_grid_step_to(point))

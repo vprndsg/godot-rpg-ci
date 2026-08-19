@@ -5,11 +5,20 @@
 ## `region_rect` avoids hand-authoring a SpriteFrames resource for every new
 ## character -- adding an actor means adding it to tools/gen_art.py and naming
 ## it here.
+##
+## The four direction names are **grid** axes, so on screen they are the four
+## diagonals: "down" is grid +y (down-left), "right" is grid +x (down-right),
+## "up" is grid -y (up-right) and "left" is grid -x (up-left). Down and right
+## therefore face the camera and show a face; up and left show a back.
 class_name ActorSprite
 extends Sprite2D
 
 const MANIFEST_PATH := "res://assets/sprites/actors.json"
 const WALK_FPS := 7.0
+## Row of a frame the character's feet stand on. The node's own origin is put
+## there, so an actor's position is the patch of ground they occupy and
+## y-sorting compares like with like against the tiles.
+const FOOT_ROW := 22
 
 static var _manifest: Dictionary = {}
 
@@ -59,12 +68,22 @@ static func frame_size() -> Vector2i:
 	return Vector2i(int(fs[0]), int(fs[1]))
 
 
+## Which of the four directions a grid-space step faces.
+##
+## Takes a step in tiles, not pixels: on screen the axes are diagonals, and
+## comparing screen x against screen y would pick the wrong one every time.
+static func facing_for(step: Vector2) -> String:
+	if absf(step.x) > absf(step.y):
+		return "right" if step.x > 0.0 else "left"
+	return "down" if step.y > 0.0 else "up"
+
+
 func _ready() -> void:
 	region_enabled = true
 	centered = true
-	# Origin sits at the actor's feet-ish, so y-sorting against the object
-	# layer orders characters by where they stand, not where their hat is.
-	offset = Vector2(0, -frame_size().y / 2.0 + 6)
+	# Origin sits at the actor's feet, so y-sorting against the object layer
+	# orders characters by where they stand, not by where their hat is.
+	offset = Vector2(0, frame_size().y / 2.0 - FOOT_ROW)
 	_refresh()
 
 

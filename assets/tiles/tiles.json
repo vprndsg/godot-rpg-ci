@@ -1,6 +1,9 @@
 {
   "_comment": "Single source of truth for tiles. Used by tools/build_tileset.gd (bakes terrain.tres), scripts/tile_registry.gd (runtime), and tests/. Add a tile here + a draw function in tools/gen_art.py, then re-run both generators.",
-  "tile_size": 16,
+  "_geometry": "The world is isometric. tile_size is the 2:1 diamond a cell covers on the ground; cell_size is the atlas cell that draws it. The diamond sits centred in the cell, so rows 24-39 are the footprint, rows 0-23 are headroom for anything tall, and rows 40-63 are the padding that keeps the footprint centred. That padding is what lets terrain.tres draw with texture_origin (0, 0): a centred region needs no offset, so there is no second place for the alignment to drift.",
+  "projection": "isometric",
+  "tile_size": [32, 16],
+  "cell_size": [32, 64],
   "atlas": "res://assets/tiles/terrain.png",
   "atlas_columns": 8,
   "tiles": {

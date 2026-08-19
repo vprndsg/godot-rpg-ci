@@ -42,8 +42,28 @@ static func names() -> Array:
 	return out
 
 
-static func tile_size() -> int:
-	return int(data().get("tile_size", 16))
+## The 2:1 diamond one cell covers on the ground -- Godot's TileSet.tile_size.
+static func tile_size() -> Vector2i:
+	return _vec("tile_size", Vector2i(32, 16))
+
+
+## One cell of terrain.png. Taller than the diamond so walls, trees and roofs
+## have somewhere to go; see the _geometry note in tiles.json.
+static func cell_size() -> Vector2i:
+	return _vec("cell_size", Vector2i(32, 64))
+
+
+## First row of the diamond footprint inside a cell. The footprint is centred
+## vertically, which is what keeps the baked tileset's texture_origin at zero.
+static func footprint_top() -> int:
+	return (cell_size().y - tile_size().y) / 2
+
+
+static func _vec(key: String, fallback: Vector2i) -> Vector2i:
+	var v: Array = data().get(key, [])
+	if v.size() != 2:
+		return fallback
+	return Vector2i(int(v[0]), int(v[1]))
 
 
 static func atlas_path() -> String:
