@@ -6,6 +6,7 @@
 #   tools/ci.sh import     re-import assets (must run before anything else)
 #   tools/ci.sh generate   regenerate the art, the baked tileset and the sheets
 #   tools/ci.sh sheets     re-render docs/art/ only (no Godot needed)
+#   tools/ci.sh art        check every tile stands on the grid (no Godot needed)
 #   tools/ci.sh test       run the headless test suite
 #   tools/ci.sh export     build the web export into build/web/
 #   tools/ci.sh all        import + test + export
@@ -83,6 +84,14 @@ cmd_import() {
   echo "import ok"
 }
 
+# Split out on purpose, like sheets: an imported art pack can be checked
+# without an engine, which is what you want when the answer is usually
+# "that sheet was drawn on a different grid".
+cmd_art() {
+  say "Checking the art sits on the isometric grid"
+  python3 tools/check_art.py
+}
+
 # Split out from generate on purpose: rendering the sheets needs no engine, so
 # an agent can look at the art without installing Godot at all.
 cmd_sheets() {
@@ -96,6 +105,9 @@ cmd_generate() {
   need_godot
   say "Regenerating art"
   python3 tools/gen_art.py
+  cmd_art
+  say "Refreshing credits for imported art"
+  python3 tools/packs.py --credits
   say "Baking the tileset"
   run_godot --script res://tools/build_tileset.gd
   cmd_sheets
@@ -127,8 +139,9 @@ case "${1:-all}" in
   import)   cmd_import ;;
   generate) cmd_generate ;;
   sheets)   cmd_sheets ;;
+  art)      cmd_art ;;
   test)     shift; cmd_test "$@" ;;
   export)   cmd_export ;;
   all)      cmd_import; cmd_test; cmd_export ;;
-  *)        die "unknown command '$1' (try: setup, import, generate, sheets, test, export, all)" ;;
+  *)        die "unknown command '$1' (try: setup, import, generate, sheets, art, test, export, all)" ;;
 esac

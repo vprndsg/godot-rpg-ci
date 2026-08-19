@@ -53,6 +53,7 @@ tools/ci.sh test       # the whole suite, ~2 seconds
 tools/ci.sh generate   # only after editing tiles.json or tools/gen_art.py
 tools/ci.sh export     # web build into build/web/ (needs export templates)
 tools/ci.sh sheets     # re-render docs/art/ only (no Godot needed)
+tools/ci.sh art        # check every tile stands on the grid (no Godot needed)
 ```
 
 **Working on art?** You cannot judge a 32×16 diamond at 1:1, and you certainly
@@ -82,6 +83,7 @@ lives in JSON you can read and diff.
 | Who someone is | `data/npcs/<id>.json` | `tools/ci.sh test` |
 | What someone says | `dialogue/<id>.json` | `tools/ci.sh test` |
 | The tiles that exist | `assets/tiles/tiles.json` + `tools/gen_art.py` | `tools/ci.sh generate` then `test` |
+| Bring in bought or downloaded art | `assets/packs/<name>/` + `tiles.json` | `tools/ci.sh art`, then `generate` |
 | Movement, interaction, saving | `scripts/*.gd` | `tools/ci.sh test` |
 | Key bindings | `tools/setup_input.gd` | run that script, commit `project.godot` |
 
@@ -90,6 +92,7 @@ maps/*.json          ASCII grids + a legend. One character per tile.
 data/npcs/*.json     display name, sprite, dialogue id, behaviour.
 dialogue/*.json      a node graph: text, choices, flags.
 assets/tiles/        tiles.json is the source; terrain.png and terrain.tres are generated.
+assets/packs/        imported art. Sheets are sources; see the README in there.
 scripts/             game code. map_data.gd holds the validator, iso.gd the projection.
 tools/pixel.py       canvas, PNG, palette, and the diamond primitives. Shared by all renderers.
 docs/art/            GENERATED contact sheets and map renders. Look at these.
@@ -101,9 +104,16 @@ tools/               generators and ci.sh.
 ## Rules that keep the headless loop working
 
 **Never hand-edit a generated file.** `assets/tiles/terrain.png`,
-`assets/tiles/terrain.tres`, `assets/sprites/actors.png` and everything in
-`docs/art/` are built by `tools/ci.sh generate`. CI regenerates them and fails
-if the result differs from what is committed.
+`assets/tiles/terrain.tres`, `assets/sprites/actors.png`, `CREDITS.md` and
+everything in `docs/art/` are built by `tools/ci.sh generate`. CI regenerates
+them and fails if the result differs from what is committed.
+
+**Art may be imported instead of drawn.** A tile in `tiles.json` can name a
+`pack`, and its pixels are then cut from a sheet in `assets/packs/<name>/`
+rather than from a painter. That does not weaken the rule above: a pack's
+sheet is a *source*, terrain.png is still the *output*, and the drift check
+still holds. `assets/packs/README.md` is the whole workflow, including what to
+do when a downloaded sheet is drawn at a different scale.
 
 **Never put map content in a `.tscn`.** A `TileMapLayer` stores its cells as a
 binary blob. You cannot read it, review it, or diff it. Maps are ASCII grids
@@ -149,6 +159,11 @@ You get these for free; do not re-implement them.
   and is still an isometric diamond grid of the size the registry declares.
 - `scripts/iso.gd` still projects cells exactly where a real `TileMapLayer`
   puts them, in both directions.
+- Every tile stands on its ground diamond: art may rise as far above its cell
+  as it likes and may never sink below the footprint, which is what makes
+  sorting by ground contact correct. `tools/ci.sh art` is the gate.
+- Every imported tile names a pack that records its author, source and licence,
+  and `CREDITS.md` lists them.
 
 ## Writing style for the game itself
 

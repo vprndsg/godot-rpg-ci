@@ -141,3 +141,66 @@ func test_every_npc_definition_is_placed_on_a_map() -> void:
 	for npc_id: String in Npc.all_ids():
 		ok(placed.has(npc_id),
 			"npc '%s' is defined but no map places them; they can never be met" % npc_id)
+
+
+## Sorting is by ground contact, which only works if a tile's sort origin is
+## the tile's own position. A pack that shipped tall art with a baked-in
+## offset, or a baker that reverted to sorting by half a cell, would put a
+## player standing south of a wall behind it.
+func test_tiles_sort_by_the_ground_they_stand_on() -> void:
+	var tile_set: TileSet = load(TILESET_PATH)
+	if not ok(tile_set != null, "could not load %s" % TILESET_PATH):
+		return
+	var source: TileSetAtlasSource = tile_set.get_source(0)
+	if not ok(source != null, "%s has no atlas source 0" % TILESET_PATH):
+		return
+	for tile_name: String in TileRegistry.names():
+		var data: TileData = source.get_tile_data(TileRegistry.atlas_coords(tile_name), 0)
+		if data == null:
+			continue
+		equal(data.y_sort_origin, 0,
+			"tile '%s' sorts from somewhere other than the ground it stands on" % tile_name)
+
+
+## Imported art is somebody else's work and this repo publishes to the web on
+## every merge, so a tile may only name a pack that says who made it and under
+## what terms. CREDITS.md is generated from these same manifests.
+func test_imported_tiles_carry_their_licence() -> void:
+	var imported := TileRegistry.imported_names()
+	for tile_name: String in imported:
+		var pack_name := TileRegistry.pack_of(tile_name)
+		var path := "res://assets/packs/%s/pack.json" % pack_name
+		if not ok(FileAccess.file_exists(path),
+				"tile '%s' names pack '%s', but %s is not there" % [tile_name, pack_name, path]):
+			continue
+		var f := FileAccess.open(path, FileAccess.READ)
+		var parsed: Variant = JSON.parse_string(f.get_as_text())
+		f.close()
+		if not ok(parsed is Dictionary, "%s is not a JSON object" % path):
+			continue
+		var manifest: Dictionary = parsed
+		for field: String in ["name", "source", "author", "license", "sheet", "tiles"]:
+			not_empty(manifest.get(field, ""),
+				"pack '%s' has no '%s'; imported art cannot ship without it" % [pack_name, field])
+		var provided: Dictionary = manifest.get("tiles", {})
+		var source_name := String(TileRegistry.tiles()[tile_name].get("pack_tile", tile_name))
+		ok(provided.has(source_name),
+			"pack '%s' does not provide '%s' (set \"pack_tile\" if it is named differently there)"
+				% [pack_name, source_name])
+
+
+func test_credits_lists_every_installed_pack() -> void:
+	var imported := TileRegistry.imported_names()
+	if imported.is_empty():
+		return
+	var f := FileAccess.open("res://CREDITS.md", FileAccess.READ)
+	if not ok(f != null, "CREDITS.md is missing -- run tools/ci.sh generate"):
+		return
+	var text := f.get_as_text()
+	f.close()
+	var seen: Dictionary = {}
+	for tile_name: String in imported:
+		seen[TileRegistry.pack_of(tile_name)] = true
+	for pack_name: String in seen:
+		ok(text.contains(pack_name),
+			"CREDITS.md does not mention pack '%s' -- run tools/ci.sh generate" % pack_name)

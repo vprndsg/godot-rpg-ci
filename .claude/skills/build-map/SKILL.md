@@ -102,7 +102,14 @@ big maps are unreviewable and the validator caps them at 256.
 
 1. Add an entry to `assets/tiles/tiles.json` with a free `atlas` cell and the
    right `solid` flag.
-2. Add a `t_<name>` painter to `tools/gen_art.py` and register it in `PAINTERS`.
+2. Give it the pixels, one of two ways.
+
+   **Imported art** (bought, downloaded, commissioned): put the sheet in
+   `assets/packs/<name>/` with a `pack.json`, and give the tile
+   `"pack": "<name>"` in `tiles.json`. No painter needed. See
+   `assets/packs/README.md`.
+
+   **Drawn art:** add a `t_<name>` painter to `tools/gen_art.py` and register it in `PAINTERS`.
    The world is isometric, so build from the helpers at the top of that file
    rather than from raw rectangles: `ground()` for flat terrain, `block()` for
    a full-cell solid, `small_block()` for furniture, `foot_shadow()` under a

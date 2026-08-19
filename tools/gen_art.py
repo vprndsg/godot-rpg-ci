@@ -37,9 +37,11 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import packs
+
 from pixel import (  # noqa: F401  (rgb/CLEAR used by painters)
     ROOT, Canvas, CLEAR, P, blob, diamond_floor, diamond_pixels, diamond_span,
-    fill_diamond, geometry, in_diamond, noise, prism, rgb, shade,
+    fill_diamond, geometry, in_diamond, load_png, noise, prism, rgb, shade,
 )
 
 TW, TH, CW, CH = geometry()   # diamond 32x16 inside a 32x64 cell
@@ -666,18 +668,58 @@ PAINTERS = {
 
 
 def build_terrain():
+    """Compose the atlas from painters and from any imported art packs.
+
+    A tile is drawn by a `t_<name>` painter here unless tiles.json gives it a
+    `pack`, in which case its pixels are cut from that pack's sheet instead.
+    Both are *sources*: terrain.png stays a build output either way, so the CI
+    drift check keeps meaning what it means.
+    """
     reg = json.load(open(os.path.join(ROOT, "assets/tiles/tiles.json")))
     cols = reg["atlas_columns"]
     rows = max(t["atlas"][1] for t in reg["tiles"].values()) + 1
     c = Canvas(cols * CW, rows * CH)
 
-    missing = sorted(set(reg["tiles"]) - set(PAINTERS))
+    imported = packs.tile_owner(reg)
+    missing = sorted(set(reg["tiles"]) - set(PAINTERS) - set(imported))
     if missing:
-        raise SystemExit("tiles.json lists tiles with no painter here: %s" % ", ".join(missing))
+        raise SystemExit(
+            "tiles.json lists tiles with neither a painter here nor a 'pack': %s"
+            % ", ".join(missing))
 
+    manifests, sheets = {}, {}
     for name, info in reg["tiles"].items():
         ax, ay = info["atlas"]
-        PAINTERS[name](c, ax * CW, ay * CH)
+        pack_name = imported.get(name)
+        if pack_name is None:
+            PAINTERS[name](c, ax * CW, ay * CH)
+            continue
+
+        if pack_name not in manifests:
+            if pack_name not in packs.pack_names():
+                raise SystemExit("tile '%s' names pack '%s', which is not in assets/packs/"
+                                 % (name, pack_name))
+            manifests[pack_name] = packs.load(pack_name)
+            broken = packs.problems(manifests[pack_name])
+            if broken:
+                raise SystemExit("pack '%s' is not usable:\n  %s" % (pack_name, "\n  ".join(broken)))
+            sheets[pack_name] = load_png(os.path.join(
+                manifests[pack_name]["_dir"], manifests[pack_name]["sheet"]))
+
+        manifest = manifests[pack_name]
+        source_name = info.get("pack_tile", name)
+        if source_name not in manifest["tiles"]:
+            raise SystemExit("pack '%s' has no tile '%s' (set \"pack_tile\" if it is named "
+                             "something else there)" % (pack_name, source_name))
+        pixels, spilled = packs.cell_pixels(manifest, source_name, sheets[pack_name])
+        if spilled:
+            raise SystemExit(
+                "tile '%s' from pack '%s' does not fit a %dx%d cell: %d pixels spill outside. "
+                "Move the pack's anchor, or adopt its geometry in tiles.json."
+                % (name, pack_name, CW, CH, len(spilled)))
+        for x, y, colour in pixels:
+            c.set(ax * CW + x, ay * CH + y, colour)
+
     c.save(os.path.join(ROOT, "assets/tiles/terrain.png"))
 
 

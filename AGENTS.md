@@ -116,9 +116,27 @@ Two rules the isometric grid adds:
 **To add a character:** add a row to `ACTORS` in `gen_art.py` (name plus four
 hex colours) → `tools/ci.sh generate` → look at `docs/art/actors.png`.
 
+**To use art you did not draw:** put the sheet in `assets/packs/<name>/` with a
+`pack.json`, then give the tile a `"pack"` in `tiles.json` instead of writing a
+painter. `assets/packs/README.md` has the format and the two ways a downloaded
+sheet usually fails to fit. This does not weaken the CI drift check — the sheet
+is a source and `terrain.png` is still rebuilt from it every time.
+
 Painters use `noise()` for texture so output stays deterministic across runs;
 never use `random`. Colours come from `P` in `tools/pixel.py` — if you need a
 new one, add it there rather than inlining a hex value.
+
+## The one rule all art obeys
+
+**A sprite may rise as far above its cell as it likes, and may never sink below
+the ground diamond it stands on.**
+
+That is the whole contract, and `tools/ci.sh art` enforces it on every tile,
+drawn or imported. It is what lets a tree overhang its neighbours while its
+trunk still meets the floor at a known place — and sorting the world by ground
+contact is only correct because it holds. A sheet drawn on somebody else's grid
+will break it, silently, in a way that looks fine on a contact sheet and wrong
+the moment forty tiles sit together.
 
 ## What the art actually needs
 

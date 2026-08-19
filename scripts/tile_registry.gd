@@ -86,6 +86,23 @@ static func is_solid(tile_name: String) -> bool:
 	return bool(tiles().get(tile_name, {}).get("solid", false))
 
 
+## Which imported art pack a tile's pixels come from, or "" when a painter in
+## tools/gen_art.py drew them. Third-party art carries licence terms, so the
+## game has to be able to say where each tile came from.
+static func pack_of(tile_name: String) -> String:
+	return String(tiles().get(tile_name, {}).get("pack", ""))
+
+
+## Tiles whose art was imported rather than drawn, sorted.
+static func imported_names() -> Array:
+	var out: Array = []
+	for tile_name: String in tiles():
+		if not pack_of(tile_name).is_empty():
+			out.append(tile_name)
+	out.sort()
+	return out
+
+
 ## Atlas rows actually referenced, used to size the generated tileset.
 static func atlas_rows() -> int:
 	var maxy := 0

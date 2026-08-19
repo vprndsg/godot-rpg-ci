@@ -1,5 +1,6 @@
 {
   "_comment": "Single source of truth for tiles. Used by tools/build_tileset.gd (bakes terrain.tres), scripts/tile_registry.gd (runtime), and tests/. Add a tile here + a draw function in tools/gen_art.py, then re-run both generators.",
+  "_packs": "A tile with a \"pack\" takes its pixels from assets/packs/<name>/ instead of a painter in tools/gen_art.py -- that is how third-party art gets in. The pack sheet is a committed source and terrain.png is still a build output, so the CI drift check keeps working. Add \"pack_tile\" if the pack names the tile something else.",
   "_geometry": "The world is isometric. tile_size is the 2:1 diamond a cell covers on the ground; cell_size is the atlas cell that draws it. The diamond sits centred in the cell, so rows 24-39 are the footprint, rows 0-23 are headroom for anything tall, and rows 40-63 are the padding that keeps the footprint centred. That padding is what lets terrain.tres draw with texture_origin (0, 0): a centred region needs no offset, so there is no second place for the alignment to drift.",
   "projection": "isometric",
   "tile_size": [32, 16],
@@ -44,6 +45,9 @@
     "void":        { "atlas": [7, 3], "solid": true  },
 
     "shore":       { "atlas": [0, 4], "solid": true  },
-    "dune_edge":   { "atlas": [1, 4], "solid": false }
+    "dune_edge":   { "atlas": [1, 4], "solid": false },
+
+    "bollard":     { "atlas": [2, 4], "solid": true,  "pack": "example-harbour" },
+    "crate_stack": { "atlas": [3, 4], "solid": true,  "pack": "example-harbour" }
   }
 }

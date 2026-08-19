@@ -26,17 +26,19 @@ jobs:
         run: tools/ci.sh import
 
       - name: Check the generated files are up to date
-        # tiles.json and gen_art.py are the sources; terrain.png, terrain.tres
-        # and everything in docs/art/ are built from them. If regenerating
-        # changes anything, someone edited a source and forgot to re-run the
-        # generators. docs/art/ is covered too so the committed contact sheets
-        # always match the art, which is what makes GitHub's image diff on a
-        # pull request trustworthy.
+        # tiles.json, gen_art.py and any sheet under assets/packs/ are the
+        # sources; terrain.png, terrain.tres, CREDITS.md and everything in
+        # docs/art/ are built from them. If regenerating changes anything,
+        # someone edited a source and forgot to re-run the generators.
+        # docs/art/ is covered too so the committed contact sheets always match
+        # the art, which is what makes GitHub's image diff on a pull request
+        # trustworthy. Imported art does not escape this: a pack's sheet is a
+        # source like any other, and terrain.png is still rebuilt from it.
         run: |
           tools/ci.sh generate
-          if ! git diff --quiet -- assets/ docs/art/; then
+          if ! git diff --quiet -- assets/ docs/art/ CREDITS.md; then
             echo "::error::Generated files are stale. Run 'tools/ci.sh generate' and commit the result."
-            git diff --stat -- assets/ docs/art/
+            git diff --stat -- assets/ docs/art/ CREDITS.md
             exit 1
           fi
           echo "generated assets and art sheets are up to date"

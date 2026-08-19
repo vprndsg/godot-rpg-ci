@@ -1,0 +1,15 @@
+{
+  "_comment": "A worked example of the import format, and the thing that keeps the importer honest -- tools/ci.sh generate slices this on every run, so the path a real pack takes is exercised even when no real pack is installed. Copy this directory, drop in the sheet you downloaded, fix the four geometry numbers, delete this one.",
+  "name": "example-harbour",
+  "source": "https://github.com/vprndsg/godot-rpg-ci",
+  "author": "Port Azure",
+  "license": "CC0-1.0",
+  "attribution": "",
+  "sheet": "sheet.png",
+  "cell_size": [48, 72],
+  "anchor": [24, 62],
+  "tiles": {
+    "bollard": [0, 0],
+    "crate_stack": [1, 0]
+  }
+}
