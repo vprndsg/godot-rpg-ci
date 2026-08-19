@@ -93,7 +93,7 @@ func test_walls_stop_the_player() -> void:
 	if not ok(from.x >= 0, "no wall to test against on '%s'" % map.id):
 		return
 
-	world.player.global_position = map.world_position(from)
+	world.player.global_position = map.flat_world_position(from)
 	await physics_frames(2)
 	# Measured in tiles, not pixels: a screen distance means different things
 	# in different directions once the world is projected.
@@ -127,7 +127,7 @@ func test_open_ground_lets_the_player_move() -> void:
 		var step: Vector2i = options[action]
 		if not (map.is_walkable(spawn + step) and map.is_walkable(spawn + step * 2)):
 			continue
-		world.player.global_position = map.world_position(spawn)
+		world.player.global_position = map.flat_world_position(spawn)
 		await physics_frames(2)
 		var before := Iso.screen_to_grid(world.player.global_position)
 		Input.action_press(action)
@@ -203,7 +203,7 @@ func test_facing_an_interactable_finds_it() -> void:
 				if not map.is_walkable(from):
 					continue
 				stood_anywhere = true
-				world.player.global_position = map.world_position(from)
+				world.player.global_position = map.flat_world_position(from)
 				world.player.face(STEPS[step])
 				await physics_frames(3)
 				if world.player.find_interactable() != null:

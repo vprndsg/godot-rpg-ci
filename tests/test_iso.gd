@@ -113,6 +113,16 @@ func test_grid_bounds_contain_every_cell_of_a_map() -> void:
 						% [map_id, cell, point, bounds])
 
 
+## One elevation level is half a diamond on purpose: raising a cell one level
+## lifts it exactly as far as stepping one cell toward the back of the map
+## does. tools/pixel.py's level_px() derives the same value from the registry,
+## so this pin is what keeps the game and the Python renderers agreeing about
+## how tall a hill is.
+func test_elevation_height_is_half_a_diamond() -> void:
+	equal(Iso.ELEVATION_HEIGHT, Iso.tile().y * 0.5,
+		"Iso.ELEVATION_HEIGHT no longer matches the registry's tile height -- update tools/pixel.py level_px() and the art to match, deliberately")
+
+
 ## Actors are placed at their cell's centre and drawn with their feet there, so
 ## the sprite's own foot row has to agree with the offset the node applies.
 func test_actor_sprites_stand_on_their_own_position() -> void:

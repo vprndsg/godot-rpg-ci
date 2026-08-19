@@ -27,12 +27,16 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from pixel import ROOT, Canvas, diamond_span, draw_text, load_png, rgb
+from pixel import ROOT, Canvas, diamond_span, draw_text, level_px, load_png, rgb
 
 LAYERS = ("ground", "objects")
+# Stacked under every raised cell, one band per level -- the same tile
+# scripts/map_loader.gd stacks, chosen the same way. Maps never place it.
+CLIFF_TILE = "cliff"
 GRID = (255, 255, 255, 40)
 GRID_MAJOR = (255, 255, 255, 90)
 MISSING = rgb("ff00d0")
+ELEVATION_LABEL = (255, 255, 255, 200)
 
 MARKERS = {
     "spawn":  rgb("57d08a"),
@@ -101,12 +105,27 @@ def render(map_id, scale=3, grid=False, annotate=False):
     if width == 0 or height == 0:
         raise SystemExit("map '%s' has no ground layer" % map_id)
 
+    # Terrain height per cell, one digit each, exactly as MapData reads it:
+    # no elevation layer means a flat map, level 0 everywhere.
+    lvl = level_px()
+    elev_rows = data.get("elevation", [])
+
+    def elevation(cx, cy):
+        if cy >= len(elev_rows) or cx >= len(elev_rows[cy]):
+            return 0
+        ch_ = elev_rows[cy][cx]
+        return min(9, max(0, ord(ch_) - 48)) if ch_.isdigit() else 0
+
+    max_elev = max((elevation(x, y) for y in range(height) for x in range(width)),
+                   default=0)
+
     # A diamond grid leans left as it descends, so the far corner sits at a
     # negative x; shift everything right by that much. The top margin is the
-    # headroom a tall tile on the back row draws into.
+    # headroom a tall tile on the back row draws into -- plus a level's worth
+    # for every level the terrain can rise.
     span = width + height
     origin_x = (height - 1) * tw // 2
-    origin_y = foot
+    origin_y = foot + max_elev * lvl
     bar = 16
     c = Canvas(span * tw // 2 * scale, (origin_y + span * th // 2) * scale + bar)
     c.rect(0, 0, c.w, c.h, rgb("14161c"))
@@ -120,7 +139,15 @@ def render(map_id, scale=3, grid=False, annotate=False):
     stamps = {}
     unknown = set()
 
-    def draw_cell(layer, cx, cy):
+    def stamp_tile(name, cx, cy, lift=0):
+        """One tile at a cell, lifted `lift` pixels for its elevation."""
+        if name not in stamps:
+            ax, ay = reg["tiles"][name]["atlas"]
+            stamps[name] = cell_stamp(atlas, ax, ay, cw, ch, drawn_h)
+        px, py = cell_origin(cx, cy)
+        stamp(c, stamps[name], px, py - lift * scale, scale)
+
+    def draw_cell(layer, cx, cy, lift=0):
         row = data.get(layer, [])
         if cy >= len(row) or cx >= len(row[cy]):
             return
@@ -128,41 +155,62 @@ def render(map_id, scale=3, grid=False, annotate=False):
         if ch_ == " ":
             return
         name = legend.get(ch_)
-        px, py = cell_origin(cx, cy)
         if name is None or name not in reg["tiles"]:
             unknown.add(ch_)
+            px, py = cell_origin(cx, cy)
             outline(c, px + (cw - tw) // 2 * scale, py + foot * scale, tw, th, scale, MISSING)
             return
-        if name not in stamps:
-            ax, ay = reg["tiles"][name]["atlas"]
-            stamps[name] = cell_stamp(atlas, ax, ay, cw, ch, drawn_h)
-        stamp(c, stamps[name], px, py, scale)
+        stamp_tile(name, cx, cy, lift)
 
-    # Ground first and flat, exactly like the un-sorted ground TileMapLayer.
+    # Level-0 ground first and flat, exactly like the un-sorted base
+    # TileMapLayer.
     for y in range(height):
         for x in range(width):
-            draw_cell("ground", x, y)
+            if elevation(x, y) == 0:
+                draw_cell("ground", x, y)
 
     # Then everything that stands up, back to front. Screen depth in a diamond
-    # grid is x + y, which is precisely what Godot's y-sorting compares.
+    # grid is x + y, which is precisely what Godot's y-sorting compares; a
+    # raised cell keeps the depth of the flat cell it grew from. Within one
+    # cell: the cliff bands bottom-up, the raised ground on top of them, then
+    # whatever stands on it -- the same order the runtime's layer stack and
+    # y-sort keys produce.
     for x, y in sorted(((x, y) for y in range(height) for x in range(width)),
                        key=lambda p: (p[0] + p[1], p[0])):
-        draw_cell("objects", x, y)
+        z = elevation(x, y)
+        for band in range(z):
+            stamp_tile(CLIFF_TILE, x, y, band * lvl)
+        if z:
+            draw_cell("ground", x, y, z * lvl)
+        draw_cell("objects", x, y, z * lvl)
+
+    def surface_origin(cx, cy):
+        """Top-left of a cell's ground diamond as actually drawn -- lifted by
+        its elevation, so grid lines and markers sit on the walk surface."""
+        px, py = cell_origin(cx, cy)
+        return (px + (cw - tw) // 2 * scale,
+                py + (foot - elevation(cx, cy) * lvl) * scale)
 
     if grid:
         for y in range(height):
             for x in range(width):
-                px, py = cell_origin(x, y)
+                px, py = surface_origin(x, y)
                 major = x % 5 == 0 or y % 5 == 0
-                outline(c, px + (cw - tw) // 2 * scale, py + foot * scale,
-                        tw, th, scale, GRID_MAJOR if major else GRID)
+                outline(c, px, py, tw, th, scale, GRID_MAJOR if major else GRID)
 
     if annotate:
+        # Elevation first, so spawn/portal/NPC labels draw over the digits.
+        for y in range(height):
+            for x in range(width):
+                if elevation(x, y) == 0:
+                    continue
+                px, py = surface_origin(x, y)
+                draw_text(c, px + tw * scale // 2 - 1, py + th * scale // 2 - 2,
+                          str(elevation(x, y)), ELEVATION_LABEL)
+
         def mark(cx, cy, kind, label):
             colour = MARKERS[kind]
-            px, py = cell_origin(cx, cy)
-            px += (cw - tw) // 2 * scale
-            py += foot * scale
+            px, py = surface_origin(cx, cy)
             outline(c, px, py, tw, th, scale, colour)
             draw_text(c, px + tw * scale // 2 - 6, py + th * scale // 2 - 2, label, colour)
 

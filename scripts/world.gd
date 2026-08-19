@@ -25,6 +25,7 @@ func enter(map_id: String, spawn_id: String = "start") -> MapData:
 		return map
 	GameState.current_map = map_id
 	GameState.current_spawn = spawn_id
+	player.map = map
 	player.global_position = loader.spawn_position(spawn_id)
 	_fit_camera(map)
 	# What the camera sees past the corners of a diamond-shaped map.
@@ -43,8 +44,10 @@ func _fit_camera(map: MapData) -> void:
 	var bounds := Iso.grid_bounds(Vector2i(map.width, map.height))
 	camera.limit_left = int(bounds.position.x)
 	# Tall tiles draw above the cell they stand on, so give the back row its
-	# headroom rather than slicing the tops off the far wall.
-	camera.limit_top = int(bounds.position.y) - TileRegistry.footprint_top()
+	# headroom rather than slicing the tops off the far wall -- and raised
+	# terrain lifts everything on it by another level's worth each.
+	camera.limit_top = int(bounds.position.y) - TileRegistry.footprint_top() \
+		- int(map.max_elevation() * Iso.ELEVATION_HEIGHT)
 	camera.limit_right = int(bounds.end.x)
 	camera.limit_bottom = int(bounds.end.y)
 

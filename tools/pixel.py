@@ -164,6 +164,14 @@ def footprint_top():
     return (ch - th) // 2
 
 
+def level_px():
+    """Screen pixels one level of terrain elevation rises: half the diamond's
+    height, the same pitch as stepping one cell toward the back of the map.
+    The Python half of Iso.ELEVATION_HEIGHT; tests/test_iso.gd pins the
+    GDScript side to the same registry geometry this reads."""
+    return geometry()[1] // 2
+
+
 def cell_centre(cx, cy, tw=None, th=None):
     """Screen position of a cell's centre. Mirrors Iso.cell_centre()."""
     if tw is None:

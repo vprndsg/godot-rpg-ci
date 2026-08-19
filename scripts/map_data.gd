@@ -32,6 +32,10 @@ var display_name: String = ""
 var background: Color = Color.html(DEFAULT_BACKGROUND)
 var legend: Dictionary = {}
 var layers: Dictionary = {}          # layer name -> PackedStringArray of rows
+## Terrain height per cell, one digit 0-9 per character. Not a tile layer:
+## its characters are levels, not legend entries. Empty means a flat map --
+## every cell at level 0 -- which is what keeps old maps valid unchanged.
+var elevation_rows: PackedStringArray = []
 var spawns: Dictionary = {}          # spawn id -> Vector2i
 var portals: Array[Dictionary] = []
 var npcs: Array[Dictionary] = []
@@ -92,6 +96,15 @@ static func load_map(map_id: String) -> MapData:
 	return m
 
 
+## Build a map straight from a dictionary -- what load_map() does after the
+## JSON parse. Tests use this to try grids that should never be files.
+static func from_dict(raw: Dictionary, map_id: String = "in_memory") -> MapData:
+	var m := MapData.new()
+	m.id = map_id
+	m._from_dict(raw)
+	return m
+
+
 func _from_dict(raw: Dictionary) -> void:
 	display_name = String(raw.get("display_name", id))
 	legend = raw.get("legend", {})
@@ -107,6 +120,9 @@ func _from_dict(raw: Dictionary) -> void:
 		for row: Variant in raw.get(layer_name, []):
 			rows.append(String(row))
 		layers[layer_name] = rows
+
+	for row: Variant in raw.get("elevation", []):
+		elevation_rows.append(String(row))
 
 	var ground: PackedStringArray = layers.get("ground", PackedStringArray())
 	height = ground.size()
@@ -183,11 +199,103 @@ func is_walkable(cell: Vector2i) -> bool:
 	return not is_solid(cell)
 
 
-## Cells reachable on foot from `origin`, 4-connected.
+## Terrain height of a cell, in whole levels. 0 off-map, 0 everywhere on a
+## map without an elevation layer. Solidity says whether you may stand on a
+## cell; elevation says how high your feet are when you do.
+func elevation_at(cell: Vector2i) -> int:
+	if not in_bounds(cell) or cell.y >= elevation_rows.size():
+		return 0
+	var row := elevation_rows[cell.y]
+	if cell.x >= row.length():
+		return 0
+	var level := row.unicode_at(cell.x) - 48  # the digit '0'
+	return clampi(level, 0, 9)
+
+
+## The tallest level any cell reaches; how many raised layers a renderer needs.
+func max_elevation() -> int:
+	var top := 0
+	for y: int in mini(height, elevation_rows.size()):
+		for x: int in width:
+			top = maxi(top, elevation_at(Vector2i(x, y)))
+	return top
+
+
+## True when the cell carries a tile that may bridge one elevation level --
+## see TileRegistry.is_elevation_transition. The tile spans from the cell's
+## own level up toward the next: stairs at level 0 climb to a level-1
+## neighbour, and their art rises to meet it.
+func is_elevation_transition(cell: Vector2i) -> bool:
+	for layer_name: String in LAYERS:
+		var tile_name := tile_at(layer_name, cell)
+		if tile_name != "" and TileRegistry.is_elevation_transition(tile_name):
+			return true
+	return false
+
+
+## THE world rule for moving between two adjacent cells. Gameplay, the
+## reachability flood fill and any future pathfinding all ask this one
+## question, so they cannot disagree about what a cliff is:
+##   - same level: walk freely.
+##   - one level apart: only across a transition tile standing on the lower
+##     cell (that is the cell a staircase occupies). Anything else is a cliff.
+##   - further apart: blocked, up and (for now -- falling comes later) down.
+func can_move(from: Vector2i, to: Vector2i) -> bool:
+	if not in_bounds(from) or not in_bounds(to):
+		return false
+	if is_solid(to):
+		return false
+	var rise := elevation_at(to) - elevation_at(from)
+	if rise == 0:
+		return true
+	if absi(rise) != 1:
+		return false
+	return is_elevation_transition(from if rise > 0 else to)
+
+
+## can_move() for the steps continuous movement actually takes: staying in
+## place is fine, and a diagonal is legal when one of its two dog-leg paths
+## is. Actors move a fraction of a tile per frame, so these are the only
+## cell changes a frame can produce.
+func can_step(from: Vector2i, to: Vector2i) -> bool:
+	if from == to:
+		return true
+	var d := to - from
+	if absi(d.x) + absi(d.y) == 1:
+		return can_move(from, to)
+	if absi(d.x) == 1 and absi(d.y) == 1:
+		return (can_move(from, Vector2i(to.x, from.y)) and can_move(Vector2i(to.x, from.y), to)) \
+			or (can_move(from, Vector2i(from.x, to.y)) and can_move(Vector2i(from.x, to.y), to))
+	return false
+
+
+## Clamp a screen-space motion so it never crosses an edge can_step() forbids.
+## Falls back to the motion's two grid-axis components, which is what lets an
+## actor slide along a cliff edge instead of sticking to it. Solid tiles at
+## level 0 still have baked physics; this is how cliffs and everything on
+## raised ground block movement without collision shapes of their own.
+func allowed_motion(pos: Vector2, motion: Vector2) -> Vector2:
+	var from := Iso.cell_at(pos)
+	if can_step(from, Iso.cell_at(pos + motion)):
+		return motion
+	var g := Iso.screen_to_grid(pos + motion) - Iso.screen_to_grid(pos)
+	var along_x := Iso.grid_vector(Vector2(g.x, 0.0))
+	if can_step(from, Iso.cell_at(pos + along_x)):
+		return along_x
+	var along_y := Iso.grid_vector(Vector2(0.0, g.y))
+	if can_step(from, Iso.cell_at(pos + along_y)):
+		return along_y
+	return Vector2.ZERO
+
+
+## Cells reachable on foot from `origin`, 4-connected, walking by the same
+## can_move() rule the player walks by -- so a plateau with no stairs is
+## unreachable even though nothing on it is solid.
 ##
 ## This is what catches the class of bug you cannot see in a text diff: a door
-## walled off by a fireplace, an NPC sealed in a closet, a staircase behind a
-## table. tests/test_maps.gd asserts every portal, NPC and sign is in this set.
+## walled off by a fireplace, an NPC sealed in a closet, a sign on a ledge no
+## staircase reaches. tests/test_maps.gd asserts every portal, NPC and sign is
+## in this set.
 func reachable_from(origin: Vector2i) -> Dictionary:
 	var seen: Dictionary = {}
 	if not in_bounds(origin) or is_solid(origin):
@@ -199,7 +307,7 @@ func reachable_from(origin: Vector2i) -> Dictionary:
 		var cell: Vector2i = queue.pop_front()
 		for step: Vector2i in STEPS:
 			var next := cell + step
-			if seen.has(next) or not in_bounds(next) or is_solid(next):
+			if seen.has(next) or not can_move(cell, next):
 				continue
 			seen[next] = true
 			queue.append(next)
@@ -215,13 +323,24 @@ func primary_spawn() -> Vector2i:
 	return Vector2i(-1, -1)
 
 
-## Where a cell sits on screen. Grid coordinates are square; the diamond only
-## happens here, on the way out. See scripts/iso.gd.
+## Where a cell's ground *surface* sits on screen: the flat projection lifted
+## by the cell's elevation. This is where the top of a hill visibly is.
 func world_position(cell: Vector2i) -> Vector2:
+	return flat_world_position(cell) + Iso.elevation_offset(elevation_at(cell))
+
+
+## Where a cell sits on the flat (level-0) plane, elevation ignored. This is
+## the plane the simulation lives on: actor bodies, physics, y-sorting and
+## cell arithmetic all stay flat, and elevation is applied on the way to the
+## screen -- tile layers are shifted up per level, actor sprites are lifted
+## off their own body. That keeps Iso.cell_at(position) exact at any height,
+## and leaves room for a jump offset later without touching the world model.
+func flat_world_position(cell: Vector2i) -> Vector2:
 	return Iso.cell_centre(Vector2(cell))
 
 
-## The cell a screen position stands in -- the inverse of world_position().
+## The cell a screen position stands in -- the inverse of flat_world_position()
+## (bodies live on the flat plane, so this is exact at any elevation).
 ## Static because it needs nothing from the map, but named as a pair with it.
 static func cell_at(pos: Vector2) -> Vector2i:
 	return Iso.cell_at(pos)
@@ -254,6 +373,22 @@ func validate() -> PackedStringArray:
 		for y: int in rows.size():
 			if rows[y].length() != width:
 				errors.append("layer '%s' row %d is %d chars, expected %d" % [layer_name, y, rows[y].length(), width])
+
+	# 1b. elevation, when present, is a full rectangle of digits. It is not a
+	#     tile layer -- its characters are levels 0-9, not legend entries --
+	#     and a short row would silently flatten cells, so it gets the same
+	#     rectangularity treatment.
+	if not elevation_rows.is_empty():
+		if elevation_rows.size() != height:
+			errors.append("'elevation' has %d rows but 'ground' has %d" % [elevation_rows.size(), height])
+		for y: int in elevation_rows.size():
+			var row := elevation_rows[y]
+			if row.length() != width:
+				errors.append("'elevation' row %d is %d chars, expected %d" % [y, row.length(), width])
+			for x: int in row.length():
+				var code := row.unicode_at(x)
+				if code < 48 or code > 57:  # '0'..'9'
+					errors.append("'elevation' row %d has '%s' at column %d; every cell must be a digit 0-9" % [y, row[x], x])
 
 	# 2. legend is complete and points at real tiles
 	for ch: String in legend:

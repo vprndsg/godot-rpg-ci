@@ -41,7 +41,8 @@ import packs
 
 from pixel import (  # noqa: F401  (rgb/CLEAR used by painters)
     ROOT, Canvas, CLEAR, P, blob, diamond_floor, diamond_pixels, diamond_span,
-    fill_diamond, geometry, in_diamond, load_png, noise, prism, rgb, shade,
+    fill_diamond, geometry, in_diamond, level_px, load_png, noise, prism, rgb,
+    shade,
 )
 
 TW, TH, CW, CH = geometry()   # diamond 32x16 inside a 32x64 cell
@@ -51,6 +52,10 @@ FOOT = (CH - TH) // 2         # 24 -- first row of the footprint in a cell
 # anything taller would climb out of its cell and be clipped.
 WALL_H = 16
 ROOF_H = 24
+# One terrain elevation level, 8px. Cliff bands are exactly this tall and
+# stair tiles rise exactly this much at their back edge, because the raised
+# ground diamond of the next level up sits exactly here.
+LEVEL_H = level_px()
 
 
 # --------------------------------------------------------------------------
@@ -444,9 +449,15 @@ def _tread(x, y):
 
 
 def t_stairs_up(c, ox, oy):
-    """Steps climbing away from the camera."""
+    """Steps climbing away from the camera, one elevation level tall.
+
+    This is the elevation_transition tile: standing on it the player may step
+    one level up, to the north (grid -y). The back edge therefore rises
+    exactly LEVEL_H, where the next level's ground diamond sits -- taller and
+    the top step pokes through the terrain above, shorter and it leaves a gap.
+    """
     for x, y in diamond_pixels(TW, TH):
-        rise = (3 - _tread(x, y)) * 4
+        rise = (LEVEL_H, LEVEL_H - 2, LEVEL_H - 5, 0)[_tread(x, y)]
         for d in range(rise + 1):
             if d == 0:
                 col = P["stone_hi"]              # the tread you walk on
@@ -455,6 +466,31 @@ def t_stairs_up(c, ox, oy):
             else:
                 col = P["stone_lo"]
             c.set(ox + x, oy + FOOT + y - rise + d, col)
+
+
+def t_cliff(c, ox, oy):
+    """One elevation level of exposed hillside.
+
+    MapLoader and tools/render_map.py stack one of these per level under
+    every raised cell -- maps never place it. It is a block exactly LEVEL_H
+    tall: the raised ground diamond above lands on its top face and covers
+    it, leaving the two camera-facing sides as the visible cliff. Earth with
+    embedded stone, darker on the south-east face like every other block, so
+    stacked bands read as strata rather than stripes.
+    """
+    block(c, ox, oy, LEVEL_H, P["dirt"], P["dirt_lo"], shade(P["dirt_lo"], -22))
+    for x, top, bottom in faces(LEVEL_H):
+        base = P["dirt_lo"] if x < TW // 2 else shade(P["dirt_lo"], -22)
+        # A root-and-soil lip right under the turf above.
+        c.set(ox + x, oy + FOOT + top, shade(base, -28))
+        for y in range(top + 1, bottom + 1):
+            n = noise(ox + x, oy + y, 23)
+            if n > 0.86:
+                c.set(ox + x, oy + FOOT + y, P["stone_lo"])
+            elif n > 0.80:
+                c.set(ox + x, oy + FOOT + y, shade(base, 14))
+            elif n < 0.08:
+                c.set(ox + x, oy + FOOT + y, shade(base, -14))
 
 
 def t_stairs_down(c, ox, oy):
@@ -660,6 +696,7 @@ PAINTERS = {
     "stone_floor": t_stone_floor, "rug": t_rug, "wall_stone": t_wall_stone,
     "wall_wood": t_wall_wood, "wall_top": t_wall_top, "roof": t_roof,
     "door": t_door, "stairs_up": t_stairs_up, "stairs_down": t_stairs_down,
+    "cliff": t_cliff,
     "counter": t_counter, "table": t_table, "chair": t_chair, "bed": t_bed,
     "fireplace": t_fireplace,
     "barrel": t_barrel, "crate": t_crate, "sign": t_sign, "window": t_window,

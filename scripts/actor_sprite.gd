@@ -19,6 +19,10 @@ const WALK_FPS := 7.0
 ## there, so an actor's position is the patch of ground they occupy and
 ## y-sorting compares like with like against the tiles.
 const FOOT_ROW := 22
+## How fast the sprite eases toward its ground_lift, in pixels per second.
+## Crossing onto a raised cell moves the feet up a whole level at once; easing
+## over a few frames turns that pop into a climb.
+const LIFT_SPEED := 60.0
 
 static var _manifest: Dictionary = {}
 
@@ -35,6 +39,13 @@ var facing: String = "down":
 		_refresh()
 
 var moving: bool = false
+
+## Pixels the drawing is lifted above the actor's own position. The body
+## stays on the flat plane -- position, physics and y-sorting never move --
+## and elevation is applied here, on the way to the screen, exactly as the
+## raised tile layers are shifted up. Terrain elevation sets this today; a
+## jump arc can add to it later without the world model noticing.
+var ground_lift := 0.0
 
 var _time := 0.0
 var _frame := 0
@@ -88,6 +99,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	position.y = move_toward(position.y, -ground_lift, LIFT_SPEED * delta)
 	if not moving:
 		if _frame != 0:
 			_frame = 0
@@ -99,6 +111,12 @@ func _process(delta: float) -> void:
 	if next != _frame:
 		_frame = next
 		_refresh()
+
+
+## Jump straight to the current lift with no easing -- for spawns and map
+## changes, where easing would read as the actor falling into place.
+func snap_lift() -> void:
+	position.y = -ground_lift
 
 
 func _refresh() -> void:

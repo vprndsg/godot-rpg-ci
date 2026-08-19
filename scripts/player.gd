@@ -25,8 +25,18 @@ signal interacted(target: Node)
 
 var input_locked := false
 
+## The map being walked on, set by World on every map change. The body moves
+## on the flat plane; the map says which cell edges are cliffs and how high
+## the ground under the feet is.
+var map: MapData = null:
+	set(value):
+		map = value
+		_snap_lift = true
 
-func _physics_process(_delta: float) -> void:
+var _snap_lift := true
+
+
+func _physics_process(delta: float) -> void:
 	var step := Vector2.ZERO
 	if not input_locked and not Dialogue.is_active() and not Router.is_travelling():
 		step = Input.get_vector("move_left", "move_right", "move_up", "move_down")
@@ -34,12 +44,34 @@ func _physics_process(_delta: float) -> void:
 	# `step` is in tiles; the projection turns it into pixels. Doing it in this
 	# order is what makes every direction cost the same amount of ground.
 	velocity = Iso.grid_vector(step) * SPEED
-	move_and_slide()
 
+	# Solid tiles at level 0 push back through physics; cliffs and everything
+	# on raised ground have no collision shapes and are enforced by the world
+	# rule instead. One rule, MapData.can_move, decides both this and what the
+	# reachability validator accepts.
+	var before := global_position
+	if map != null and delta > 0.0:
+		velocity = map.allowed_motion(global_position, velocity * delta) / delta
+	move_and_slide()
+	if map != null and not map.can_step(Iso.cell_at(before), Iso.cell_at(global_position)):
+		# Physics sliding nudged the feet across an edge the rule forbids.
+		global_position = before
+
+	_update_lift()
 	sprite.moving = step != Vector2.ZERO
 	if step != Vector2.ZERO:
 		sprite.facing = ActorSprite.facing_for(step)
 	interactor.position = Iso.grid_vector(_facing_step()) * REACH
+
+
+## Keep the drawing on top of the terrain the feet are standing on.
+func _update_lift() -> void:
+	if map == null:
+		return
+	sprite.ground_lift = map.elevation_at(Iso.cell_at(global_position)) * Iso.ELEVATION_HEIGHT
+	if _snap_lift:
+		sprite.snap_lift()
+		_snap_lift = false
 
 
 func _unhandled_input(event: InputEvent) -> void:

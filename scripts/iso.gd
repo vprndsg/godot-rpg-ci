@@ -19,10 +19,27 @@
 class_name Iso
 extends RefCounted
 
+## Screen pixels one level of terrain elevation rises. Half the diamond's
+## height on purpose: raising a cell by one level lifts it exactly as far as
+## stepping one cell toward the back of the map does, so a slope reads at the
+## same pitch as the ground it climbs. tests/test_iso.gd pins this against
+## the registry's tile size; tools/pixel.py's level_px() is the same value
+## for the Python renderers.
+const ELEVATION_HEIGHT := 8.0
+
 
 ## Width and height of the ground diamond, in pixels.
 static func tile() -> Vector2:
 	return Vector2(TileRegistry.tile_size())
+
+
+## Screen offset that lifts something `level` elevation levels above the flat
+## plane. Elevation, like the diamond itself, is a *projection*: cells stay
+## (x, y) on a square grid and carry a z as data; only here does z become
+## pixels. Fractional levels are meaningful -- an actor mid-jump will be at
+## one someday.
+static func elevation_offset(level: float) -> Vector2:
+	return Vector2(0.0, -level * ELEVATION_HEIGHT)
 
 
 ## A grid-space vector (in tiles) as a screen-space vector (in pixels).

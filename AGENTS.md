@@ -175,11 +175,17 @@ stamped forty times, and it is more obvious now that a tree is a tall rounded
 mass rather than a flat square. Variant tiles chosen by position would break it
 up.
 
-**5. Height.** Every tile stands on the same ground plane; a roof is just a
-taller block than the wall in front of it. Real elevation — a `height` field
-per cell, a dock above the water, a cliff — is the thing an isometric world
-buys you that a top-down one cannot, and nothing in the current data model
-uses it.
+**5. More elevation art.** Terrain height is in: maps carry an `elevation`
+digit layer, `MapLoader` stacks the generated `cliff` tile under every raised
+cell, `stairs_up` is the transition tile that climbs one level (its art tops
+out exactly `level_px()` at its back edge, where the next level's ground
+diamond sits), and the town has a demo hill. What the art still wants:
+grass-topped cliff lip variants, a stair variant per climb direction (the
+current one climbs grid -y only), and a rock/sea cliff for coastlines. A new
+transition tile is just a painter plus `"elevation_transition": true` in
+`tiles.json`; a new cliff look is a painter that stays exactly `level_px()`
+tall. `CLAUDE.md` has the traversal rules; `tests/test_elevation.gd` will
+tell you if you broke them.
 
 Verify the exact Godot 4.7.2 API names against the local binary before writing
 the baker changes — `set_terrain_peering_bit` and `set_cells_terrain_connect`
@@ -215,15 +221,17 @@ backgrounds — use `--model gpt-image-1.5 --transparent` when you need alpha.
 
 ## What the tests already check
 
-Do not re-implement these — 40 tests cover: every script parses and every scene
+Do not re-implement these — 57 tests cover: every script parses and every scene
 instantiates; the baked tileset matches `tiles.json` tile-for-tile and
 solid-for-solid and is still an isometric diamond grid; `scripts/iso.gd`
 projects cells exactly where a real `TileMapLayer` does, both ways; every map
-is rectangular with a complete legend; **a flood fill
-from each spawn reaches every door, NPC and sign** (this is what catches a
-staircase sealed behind a table); doors lead both ways; every dialogue node is
-reachable and can reach an ending; and the game boots headlessly, walks the
-player into walls, steps through every door and interacts with everything.
+is rectangular with a complete legend and a digits-only elevation layer; **a
+flood fill from each spawn reaches every door, NPC and sign, walking by the
+same elevation rules as the player** (this is what catches a staircase sealed
+behind a table, or a plateau with no stairs); doors lead both ways; every
+dialogue node is reachable and can reach an ending; and the game boots
+headlessly, walks the player into walls and cliffs, climbs the town hill and
+comes back down, steps through every door and interacts with everything.
 
 When you add a mechanic, add the test that would fail without it. See
 `tests/test_runtime.gd::test_facing_an_interactable_finds_it` for the shape of a

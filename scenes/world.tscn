@@ -6,9 +6,11 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/dialogue_box.tscn" id="4_dialogue"]
 
 [node name="World" type="Node2D"]
+y_sort_enabled = true
 script = ExtResource("1_world")
 
 [node name="MapLoader" type="Node2D" parent="."]
+y_sort_enabled = true
 script = ExtResource("2_loader")
 
 [node name="Player" parent="." instance=ExtResource("3_player")]

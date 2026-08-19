@@ -9,16 +9,34 @@ extends Node2D
 const TILESET_PATH := "res://assets/tiles/terrain.tres"
 const NPC_SCENE := preload("res://scenes/npc.tscn")
 
+## The generated tile stacked under every raised cell, one per level, so a
+## hill has sides instead of floating diamonds. Not a legend tile: maps never
+## place it, elevation data does.
+const CLIFF_TILE := "cliff"
+
 signal map_loaded(map: MapData)
 
-## Ground tiles, drawn under everything.
+## Level-0 ground tiles, drawn flat under everything, exactly as before
+## elevation existed. A flat map uses only this and `object_layer`.
 var ground_layer: TileMapLayer
-## Object tiles (walls, furniture, trees), y-sorted with the actors.
+## Level-0 object tiles (walls, furniture, trees), y-sorted with the actors.
 var object_layer: TileMapLayer
-## Actors and interactables share this node so y-sorting orders them together.
+## Actors, interactables and every raised tile layer share this node so
+## y-sorting orders them all together.
 var sorted: Node2D
 
 var current: MapData = null
+
+## One TileMapLayer per elevation level k = 0..max, rebuilt per map:
+## the ground tiles of the cells *at* level k (k >= 1), plus the cliff band
+## between level k and k+1 of every cell raised *above* k. Each is shifted up
+## k levels on screen but keeps its y-sort at the flat plane, so a raised
+## tile occludes exactly what a solid block standing on its flat cell would.
+var _terrain_layers: Array[TileMapLayer] = []
+## Object tiles of cells at level k, for k >= 1 ([0] stays null; that level
+## is `object_layer`). Same lift, but sorted at the cell centre like every
+## other object.
+var _object_layers: Array[TileMapLayer] = []
 
 var _tileset: TileSet = null
 
@@ -65,8 +83,8 @@ func load_map(map_id: String) -> MapData:
 
 	clear()
 	current = map
-	_paint(ground_layer, map, "ground")
-	_paint(object_layer, map, "objects")
+	_make_elevation_layers(map.max_elevation())
+	_paint(map)
 	_spawn_entities(map)
 	map_loaded.emit(map)
 	return map
@@ -78,6 +96,8 @@ func clear() -> void:
 		ground_layer.clear()
 	if object_layer != null:
 		object_layer.clear()
+	_terrain_layers.clear()
+	_object_layers.clear()
 	if sorted != null:
 		for child: Node in sorted.get_children():
 			if child == object_layer:
@@ -86,18 +106,88 @@ func clear() -> void:
 			sorted.remove_child(child)
 
 
-func _paint(layer: TileMapLayer, map: MapData, layer_name: String) -> void:
+## Build the per-level layers a map with raised terrain needs. A flat map
+## builds none, so it costs exactly what it cost before elevation existed.
+##
+## Every layer keeps its y-sort key on the *flat* plane (y_sort_origin gives
+## back what position takes away), because a raised cell's depth is still the
+## depth of the ground it grew from. Terrain sorts half a grid step behind
+## the cell centre: in front of any actor standing behind the cell, behind
+## any actor standing on it -- the same "sort by ground contact" contract the
+## tiles already obey, extended upward.
+func _make_elevation_layers(top_level: int) -> void:
+	if top_level <= 0:
+		return
+	var lift := int(Iso.ELEVATION_HEIGHT)
+	var half := int(Iso.ELEVATION_HEIGHT / 2.0)
+	for level: int in top_level + 1:
+		var terrain := _make_layer("Terrain%d" % level, true)
+		terrain.collision_enabled = false
+		terrain.position = Vector2(0, -level * lift)
+		terrain.y_sort_origin = level * lift - half
+		sorted.add_child(terrain)
+		_terrain_layers.append(terrain)
+	_object_layers.append(null)  # level 0 is object_layer
+	for level: int in range(1, top_level + 1):
+		var objects := _make_layer("Objects%d" % level, true)
+		objects.collision_enabled = false
+		objects.position = Vector2(0, -level * lift)
+		objects.y_sort_origin = level * lift
+		sorted.add_child(objects)
+		_object_layers.append(objects)
+
+
+func _paint(map: MapData) -> void:
+	var cliff := TileRegistry.atlas_coords(CLIFF_TILE)
 	for y: int in map.height:
 		for x: int in map.width:
 			var cell := Vector2i(x, y)
-			var tile_name := map.tile_at(layer_name, cell)
-			if tile_name.is_empty():
-				continue
-			var coords := TileRegistry.atlas_coords(tile_name)
-			if coords == Vector2i(-1, -1):
-				push_warning("Map '%s' uses unknown tile '%s' at %s" % [map.id, tile_name, cell])
-				continue
-			layer.set_cell(cell, 0, coords)
+			var level := map.elevation_at(cell)
+			_set_cell(_ground_target(level), cell, map.tile_at("ground", cell), map)
+			_set_cell(_object_target(level), cell, map.tile_at("objects", cell), map)
+			# The exposed hillside: one cliff band per level below the cell,
+			# all the way down. Bands a neighbour's ground overlaps are simply
+			# painted over by it -- the y-sort keys already order that.
+			for band: int in level:
+				_terrain_layers[band].set_cell(cell, 0, cliff)
+
+
+func _ground_target(level: int) -> TileMapLayer:
+	return ground_layer if level == 0 else _terrain_layers[level]
+
+
+func _object_target(level: int) -> TileMapLayer:
+	return object_layer if level == 0 else _object_layers[level]
+
+
+func _set_cell(layer: TileMapLayer, cell: Vector2i, tile_name: String, map: MapData) -> void:
+	if tile_name.is_empty():
+		return
+	var coords := TileRegistry.atlas_coords(tile_name)
+	if coords == Vector2i(-1, -1):
+		push_warning("Map '%s' uses unknown tile '%s' at %s" % [map.id, tile_name, cell])
+		return
+	layer.set_cell(cell, 0, coords)
+
+
+## The sorted terrain layer for one elevation level, or null on a flat map.
+## Level k holds the ground of cells at level k plus the cliff band k of
+## every cell raised above it -- so on a hilly map, terrain_layer(0) is the
+## lowest ring of cliff faces (flat ground stays in `ground_layer`). Tests
+## use this to assert a hill really was painted at height.
+func terrain_layer(level: int) -> TileMapLayer:
+	if level >= 0 and level < _terrain_layers.size():
+		return _terrain_layers[level]
+	return null
+
+
+## The object layer for one elevation level, or null.
+func object_layer_at(level: int) -> TileMapLayer:
+	if level == 0:
+		return object_layer
+	if level < _object_layers.size():
+		return _object_layers[level]
+	return null
 
 
 func _spawn_entities(map: MapData) -> void:
@@ -113,7 +203,11 @@ func _spawn_entities(map: MapData) -> void:
 		if not custom.is_empty() and ResourceLoader.exists(custom):
 			npc.set_script(load(custom))
 		npc.configure(npc_id, def, entry.get("at", Vector2i.ZERO), String(entry.get("facing", "down")))
-		npc.position = map.world_position(entry.get("at", Vector2i.ZERO))
+		# Bodies live on the flat plane whatever their elevation; the NPC
+		# reads the map to lift its sprite and to respect cliffs while
+		# wandering. See MapData.flat_world_position for why.
+		npc.map = map
+		npc.position = map.flat_world_position(entry.get("at", Vector2i.ZERO))
 		sorted.add_child(npc)
 
 	for entry: Dictionary in map.signs:
@@ -121,7 +215,7 @@ func _spawn_entities(map: MapData) -> void:
 		sign_node.name = "Sign%s" % entry.get("at", Vector2i.ZERO)
 		sign_node.collision_layer = 8   # interactable
 		sign_node.collision_mask = 0
-		sign_node.position = map.world_position(entry.get("at", Vector2i.ZERO))
+		sign_node.position = map.flat_world_position(entry.get("at", Vector2i.ZERO))
 		var shape := CollisionShape2D.new()
 		shape.shape = _footprint_shape()
 		sign_node.add_child(shape)
@@ -134,7 +228,7 @@ func _spawn_entities(map: MapData) -> void:
 		portal.collision_layer = 8      # interactable
 		portal.collision_mask = 2       # detects the player body
 		portal.monitoring = true
-		portal.position = map.world_position(entry.get("at", Vector2i.ZERO))
+		portal.position = map.flat_world_position(entry.get("at", Vector2i.ZERO))
 		var shape := CollisionShape2D.new()
 		# Slightly inset so you have to actually step onto the tile.
 		shape.shape = _footprint_shape(0.78)
@@ -156,9 +250,10 @@ func _footprint_shape(shrink: float = 1.0) -> ConvexPolygonShape2D:
 	return shape
 
 
-## Where the player should stand when arriving at this map.
+## Where the player's body should stand when arriving at this map -- on the
+## flat plane, like every actor; the sprite lift handles the height.
 func spawn_position(spawn_id: String) -> Vector2:
 	if current == null:
 		return Vector2.ZERO
 	var cell: Vector2i = current.spawns.get(spawn_id, current.primary_spawn())
-	return current.world_position(cell)
+	return current.flat_world_position(cell)

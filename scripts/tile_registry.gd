@@ -86,6 +86,15 @@ static func is_solid(tile_name: String) -> bool:
 	return bool(tiles().get(tile_name, {}).get("solid", false))
 
 
+## True for tiles that carry the player between elevation levels -- stairs,
+## ramps, ladder feet. A step of exactly one level is legal only across such
+## a tile; without one the same edge is a cliff. Explicit metadata, not a
+## guess from the elevation difference, so a map can put a sheer drop and a
+## staircase on the same hillside.
+static func is_elevation_transition(tile_name: String) -> bool:
+	return bool(tiles().get(tile_name, {}).get("elevation_transition", false))
+
+
 ## Which imported art pack a tile's pixels come from, or "" when a painter in
 ## tools/gen_art.py drew them. Third-party art carries licence terms, so the
 ## game has to be able to say where each tile came from.

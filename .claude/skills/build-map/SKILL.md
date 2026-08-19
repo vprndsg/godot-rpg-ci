@@ -52,6 +52,53 @@ Tile names come from `assets/tiles/tiles.json` — read it first, and use
 `"solid": true` there to know what blocks movement. Do not invent tile names;
 see the **Adding a tile** section below.
 
+## Elevation: hills, cliffs and stairs
+
+A map may add an `elevation` layer — the same rectangle as `ground`, one
+digit `0`–`9` per cell. Omit it entirely for a flat map. This hill is the
+whole pattern (a shrunken version of the one in `maps/port_azure_town.json`):
+
+```json
+{
+  "legend": { ".": "grass", ">": "stairs_up" },
+  "ground": [
+    ".....",
+    ".....",
+    "..>..",
+    "..>..",
+    "....."
+  ],
+  "elevation": [
+    "01110",
+    "01210",
+    "01110",
+    "00000",
+    "00000"
+  ]
+}
+```
+
+The rules the game and the validator both walk by (`MapData.can_move`):
+
+- Between same-level cells, movement is normal.
+- A step of exactly one level needs a transition tile (`stairs_up` — it has
+  `"elevation_transition": true` in `tiles.json`) standing on the **lower**
+  cell. Here `>` at level 0 (row 3) climbs onto `>` at level 1 (row 2),
+  which climbs onto the level-2 summit at (2, 1). Two levels of climb need
+  two stair cells, one per level.
+- Every other height change is a cliff: blocked both ways. Don't try to mark
+  cliffs yourself — any raised edge without stairs is one, and the cliff
+  faces are drawn automatically (the generated `cliff` tile; never put it in
+  a legend).
+
+Stairs climb toward grid **-y** ("up"), so put the higher ground directly
+north of them — anywhere else works mechanically but draws wrong. The flood
+fill treats cliffs as walls, so an NPC or sign on a plateau you forgot to
+give stairs fails CI with "unreachable" — that is the validator doing its
+job, not a bug. Verify the shape with
+`python3 tools/render_map.py <id> --scale 4 --grid --annotate`, which prints
+each raised cell's level on the render.
+
 ## Rules the validator will hold you to
 
 Run `tools/ci.sh test -- --only maps` and it will tell you, by name, what is

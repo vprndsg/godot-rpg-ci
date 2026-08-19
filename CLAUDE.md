@@ -45,6 +45,62 @@ headroom for walls, roofs and trees; `assets/tiles/tiles.json` documents the
 layout, and `tools/gen_art.py` gives you `ground()`, `block()` and
 `small_block()` so you never have to think about it.
 
+## Elevation: the grid gains a z
+
+A cell is `[x, y]` **plus a height**. Maps may carry an `elevation` layer next
+to `ground` and `objects` — same rectangle, one digit `0`–`9` per cell:
+
+```json
+"elevation": [
+  "00000",
+  "01110",
+  "01210",
+  "01110",
+  "00000"
+]
+```
+
+No `elevation` layer means a flat map: everything at level 0, exactly as
+before. Like the diamond itself, elevation is a *projection*: the grid stays
+square, `z` is data, and only on the way to the screen does a level become
+pixels. One level is `Iso.ELEVATION_HEIGHT` (8px — half a diamond, the same
+lift as stepping one row toward the back), mirrored by `level_px()` in
+`tools/pixel.py`. Never write an `8` yourself.
+
+**The flat plane is the simulation; elevation is applied at render time.**
+Actor bodies, physics, y-sorting and `Iso.cell_at()` all live on the level-0
+plane — `MapData.flat_world_position(cell)` — and the drawing is lifted:
+raised tiles go into per-level `TileMapLayer`s shifted up by
+`z * ELEVATION_HEIGHT` (keeping their y-sort at the flat cell, so occlusion
+still orders by ground contact), and an actor's sprite is lifted off its own
+body by the elevation under its feet. `MapData.world_position(cell)` is the
+lifted surface — where the top of the hill visibly is. This split is what
+will someday let a jump be `terrain elevation + jump offset` without touching
+the world model.
+
+**Movement between levels is one rule**, `MapData.can_move(from, to)`, used
+by gameplay, the reachability flood fill and anything that will ever
+pathfind:
+
+- same level → walk freely;
+- exactly one level apart → only across a tile with
+  `"elevation_transition": true` in `tiles.json` (`stairs_up` today)
+  standing on the **lower** cell — that is the cell a staircase occupies,
+  and its art climbs toward grid **-y**, so put the higher ground north of
+  the stairs;
+- anything else is a cliff and blocks, up **and** down (falling is a later
+  mechanic).
+
+Cliff sides draw themselves: `MapLoader` and `tools/render_map.py` stack the
+generated `cliff` tile under every raised cell, one band per level. Maps
+never place it. To raise terrain you edit digits, add stairs, and run
+`tools/ci.sh test` — the validator checks the elevation rectangle, and the
+flood fill walks `can_move()`, so a plateau whose stairs you forgot fails CI
+with "unreachable", not a silent hole. See the hill in
+`maps/port_azure_town.json` (and in `docs/art/map_port_azure_town.png`) for
+the pattern to copy; `python3 tools/render_map.py <id> --scale 4 --annotate`
+prints each raised cell's level on the render.
+
 ## The loop
 
 ```
@@ -80,6 +136,7 @@ lives in JSON you can read and diff.
 | You want to change | Edit | Then |
 | --- | --- | --- |
 | A room, a town, a building | `maps/<id>.json` | `tools/ci.sh test` |
+| Terrain height — hills, cliffs, stairs | `maps/<id>.json` `elevation` layer | `tools/ci.sh test`, then look at the render |
 | Who someone is | `data/npcs/<id>.json` | `tools/ci.sh test` |
 | What someone says | `dialogue/<id>.json` | `tools/ci.sh test` |
 | The tiles that exist | `assets/tiles/tiles.json` + `tools/gen_art.py` | `tools/ci.sh generate` then `test` |
@@ -147,9 +204,12 @@ You get these for free; do not re-implement them.
 - Every map layer is rectangular, and every character used appears in the legend.
 - Every legend entry names a tile that exists in `tiles.json`.
 - Spawn points, NPCs, signs and portals stand on walkable ground.
+- The `elevation` layer, when present, is a full rectangle of digits `0`–`9`.
 - **Everything is reachable.** A flood fill from the spawn must reach every
-  portal, NPC and sign. This is what catches a door sealed behind a fireplace
-  or an NPC walled into a closet — the bugs you cannot see in a text diff.
+  portal, NPC and sign — walking by `can_move()`, so cliffs block it exactly
+  as they block the player. This is what catches a door sealed behind a
+  fireplace, an NPC walled into a closet, or a plateau with no stairs — the
+  bugs you cannot see in a text diff.
 - Every portal names a map that exists and a spawn that map defines, and every
   door leads both ways.
 - Every dialogue node is reachable from `start`, every jump lands on a real

@@ -19,6 +19,11 @@ var behavior: String = "idle"
 var home_cell: Vector2i = Vector2i.ZERO
 var wander_radius: int = 0
 
+## Set by MapLoader when the NPC is placed. The body wanders the flat plane;
+## the map lifts the sprite to the terrain and keeps the wander honest about
+## cliffs -- the same MapData.can_move rule the player obeys.
+var map: MapData = null
+
 var _rng := RandomNumberGenerator.new()
 var _target: Vector2 = Vector2.ZERO
 var _wait := 0.0
@@ -74,9 +79,12 @@ func _ready() -> void:
 	sprite.facing = String(get_meta("facing", "down"))
 	_target = global_position
 	add_to_group("npcs")
+	_update_lift()
+	sprite.snap_lift()
 
 
 func _physics_process(delta: float) -> void:
+	_update_lift()
 	if behavior != "wander" or Dialogue.is_active():
 		velocity = Vector2.ZERO
 		sprite.moving = false
@@ -95,9 +103,25 @@ func _physics_process(delta: float) -> void:
 
 	var step := _grid_step_to(_target)
 	velocity = Iso.grid_vector(step) * WANDER_SPEED
+	if map != null and delta > 0.0:
+		var allowed := map.allowed_motion(global_position, velocity * delta)
+		if allowed == Vector2.ZERO:
+			# The world rule (a cliff, usually) says no. Wanting the far side
+			# of an edge you cannot cross never resolves, so give up on it.
+			_target = global_position
+			_wait = _rng.randf_range(0.8, 2.6)
+			velocity = Vector2.ZERO
+			sprite.moving = false
+			return
+		velocity = allowed / delta
 	move_and_slide()
 	sprite.moving = true
 	sprite.facing = ActorSprite.facing_for(step)
+
+
+func _update_lift() -> void:
+	if map != null:
+		sprite.ground_lift = map.elevation_at(Iso.cell_at(global_position)) * Iso.ELEVATION_HEIGHT
 
 
 func _pick_target() -> void:
