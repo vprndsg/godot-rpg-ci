@@ -28,7 +28,7 @@ const SHOTS: Array[Dictionary] = [
 	{"name": "town_lamp", "map": "port_azure_town", "at": Vector2i(14, 17),
 	 "shows": "a single lamp's pool of light against the trees"},
 	{"name": "inn_fireplace", "map": "port_azure_inn_ground", "at": Vector2i(14, 4),
-	 "shows": "warm interior ambient + the fireplace point light and its shadows"},
+	 "shows": "warm interior ambient + the hearth's shadow-casting point light"},
 	{"name": "inn_taproom", "map": "port_azure_inn_ground", "at": Vector2i(8, 8),
 	 "shows": "the taproom read as a whole, hearth at the far end"},
 	{"name": "inn_upper", "map": "port_azure_inn_upper", "at": Vector2i(8, 8),
