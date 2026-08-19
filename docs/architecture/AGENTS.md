@@ -47,9 +47,12 @@ a lighting behaviour, stop: add metadata instead.
 5. **Verify occluders.** Walls already occlude. If your map leans on a
    shadow-casting light, check the tiles ringing it declare `occluder`
    metadata, and that no emitting tile occludes its own cell.
-6. **Verify headless loading.** `tools/ci.sh test` — the runtime suite boots
-   your map, and `tests/test_lighting.gd` checks its lights spawn and its
-   profile resolves.
+6. **Verify headless loading, then look at it.** `tools/ci.sh test` — the
+   runtime suite boots your map, and `tests/test_lighting.gd` checks its
+   lights spawn and its profile resolves. Then `tools/ci.sh shots` and open
+   `docs/shots/`: tests prove a light exists, only the frame tells you the
+   room is readable. Add your map to `SHOTS` in `tools/shoot.gd` if it is
+   worth a standing reference.
 7. **Test the transitions.** Walk in and out through every portal
    (`test_doors_move_the_player_to_the_other_side` does this in CI); lighting
    glides between environments on entry and old lights must be gone — if you
@@ -82,7 +85,8 @@ a lighting behaviour, stop: add metadata instead.
    painter disagree.
 7. **Encode all of it in metadata.** Steps 2–6 all live on the tile's entry
    in `tiles.json`. `TileRegistry.validate_lighting()` enforces the schema;
-   `tools/ci.sh generate` then `tools/ci.sh test` prove the round trip.
+   `tools/ci.sh generate` then `tools/ci.sh test` prove the round trip, and
+   `tools/ci.sh shots` shows you whether the result is worth shipping.
 8. **No name checks.** If the behaviour you want cannot be said in metadata,
    extend the schema (`scripts/tile_registry.gd` + its validator + the docs),
    don't special-case your asset in runtime code.

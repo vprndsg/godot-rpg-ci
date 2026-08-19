@@ -24,6 +24,7 @@ tools/ci.sh setup      # download Godot + web export templates into .tools/
 tools/ci.sh import     # re-import assets; run after touching assets or scenes
 tools/ci.sh generate   # redraw art, rebake the tileset, re-render docs/art/
 tools/ci.sh sheets     # re-render docs/art/ only — needs no Godot at all
+tools/ci.sh shots      # screenshot the running game into docs/shots/ (needs xvfb)
 tools/ci.sh test       # the whole suite, ~2 seconds
 tools/ci.sh export     # web build into build/web/
 ```
@@ -65,6 +66,21 @@ larger, with a coordinate grid and spawn/portal/NPC/sign markers.
 Art you did not look at is not finished. These renders need no Godot and no
 browser — they read `terrain.png` and the map JSON directly and take about a
 second.
+
+**Working on lighting?** None of the sheets above can help you: they read
+`terrain.png` and the map JSON directly, so an ambient modulate, a light
+falloff and a baked occluder are all invisible to them. Those exist only once
+Godot is drawing, so there is a second loop for them:
+
+```bash
+tools/ci.sh shots      # boots the real game on a virtual display (needs xvfb)
+```
+
+then look at `docs/shots/*.png` — the game as a player sees it, at the places
+`tools/shoot.gd` lists. Add a row there when you add a lighting behaviour a
+still frame can prove. These are reference images, not build outputs: they
+come out of whatever GL driver the machine has, so they live outside the
+drift-checked `docs/art/` and are regenerated on demand.
 
 The sheets are committed, so GitHub shows a before/after image diff on any pull
 request touching art. That is deliberate. Do not gitignore them.
