@@ -9,6 +9,11 @@
 extends SceneTree
 
 const OUT_PATH := "res://assets/tiles/terrain.tres"
+## Optional normal-map atlas, laid out cell-for-cell like terrain.png. When it
+## exists the tileset draws through a CanvasTexture, and 2D lights start
+## shading tiles by their normals; when it does not, nothing changes. That
+## conditional is the whole normal-map contract -- see docs/architecture/lighting.md.
+const NORMAL_ATLAS := "res://assets/tiles/terrain_normal.png"
 
 
 func _initialize() -> void:
@@ -22,7 +27,19 @@ func build() -> int:
 		printerr("Missing atlas %s -- run `python3 tools/gen_art.py` first." % atlas_path)
 		return 1
 
+	# A malformed lighting block would otherwise bake into nonsense silently.
+	var lighting_errors := TileRegistry.validate_lighting()
+	if not lighting_errors.is_empty():
+		for error: String in lighting_errors:
+			printerr(error)
+		return 1
+
 	var texture: Texture2D = load(atlas_path)
+	if ResourceLoader.exists(NORMAL_ATLAS):
+		var canvas_texture := CanvasTexture.new()
+		canvas_texture.diffuse_texture = texture
+		canvas_texture.normal_texture = load(NORMAL_ATLAS)
+		texture = canvas_texture
 	var tile := TileRegistry.tile_size()
 	var cell := TileRegistry.cell_size()
 
@@ -38,6 +55,11 @@ func build() -> int:
 	# Layer 1 == "world" in project.godot; the player and NPCs mask against it.
 	tile_set.set_physics_layer_collision_layer(0, 1)
 	tile_set.set_physics_layer_collision_mask(0, 0)
+	# One occlusion layer for the whole world. Tiles whose metadata says
+	# "occluder" get a polygon on it below; any shadow-casting Light2D on
+	# light mask 1 (the default) then collides with them for free.
+	tile_set.add_occlusion_layer(0)
+	tile_set.set_occlusion_layer_light_mask(0, 1)
 
 	var source := TileSetAtlasSource.new()
 	source.texture = texture
@@ -52,6 +74,7 @@ func build() -> int:
 	var footprint := Iso.diamond()
 
 	var solid_count := 0
+	var occluder_count := 0
 	for tile_name: String in TileRegistry.names():
 		var coords := TileRegistry.atlas_coords(tile_name)
 		if coords == Vector2i(-1, -1):
@@ -71,6 +94,16 @@ func build() -> int:
 			data.add_collision_polygon(0)
 			data.set_collision_polygon_points(0, 0, footprint)
 			solid_count += 1
+		# Light occlusion is its own footprint: a tree collides on its whole
+		# diamond but only its trunk blocks light. The registry resolves the
+		# metadata into a polygon; TileMapLayers pick these up automatically.
+		var occluder := TileRegistry.occluder_polygon(tile_name)
+		if not occluder.is_empty():
+			var polygon := OccluderPolygon2D.new()
+			polygon.polygon = occluder
+			data.add_occluder_polygon(0)
+			data.set_occluder_polygon(0, 0, polygon)
+			occluder_count += 1
 
 	for tile_name: String in TileRegistry.names():
 		if not TileRegistry.is_solid(tile_name):
@@ -84,5 +117,5 @@ func build() -> int:
 	if err != OK:
 		printerr("Could not write %s (error %d)" % [OUT_PATH, err])
 		return 1
-	print("Wrote %s: %d tiles, %d solid." % [OUT_PATH, TileRegistry.names().size(), solid_count])
+	print("Wrote %s: %d tiles, %d solid, %d occluders." % [OUT_PATH, TileRegistry.names().size(), solid_count, occluder_count])
 	return 0

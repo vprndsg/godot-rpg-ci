@@ -80,22 +80,38 @@ lives in JSON you can read and diff.
 | You want to change | Edit | Then |
 | --- | --- | --- |
 | A room, a town, a building | `maps/<id>.json` | `tools/ci.sh test` |
+| How a map is lit (mood, sun) | `"lighting"` block in `maps/<id>.json` | `tools/ci.sh test` |
+| A reusable lighting mood | `data/lighting/<profile>.json` | `tools/ci.sh test` |
 | Who someone is | `data/npcs/<id>.json` | `tools/ci.sh test` |
 | What someone says | `dialogue/<id>.json` | `tools/ci.sh test` |
 | The tiles that exist | `assets/tiles/tiles.json` + `tools/gen_art.py` | `tools/ci.sh generate` then `test` |
+| What a tile does to light (emit, block, glow) | `"lighting"` block in `tiles.json` (+ `e_<name>` painter for glow) | `tools/ci.sh generate` then `test` |
 | Bring in bought or downloaded art | `assets/packs/<name>/` + `tiles.json` | `tools/ci.sh art`, then `generate` |
 | Movement, interaction, saving | `scripts/*.gd` | `tools/ci.sh test` |
 | Key bindings | `tools/setup_input.gd` | run that script, commit `project.godot` |
 
+Lighting is metadata end to end — maps pick profiles, tiles declare behaviour,
+and the runtime builds the nodes. Never hardcode a tile name to get a lighting
+effect and never place a map's lights in a scene file.
+`docs/architecture/AGENTS.md` is the checklist; `docs/architecture/lighting.md`
+is the design.
+
 ```
-maps/*.json          ASCII grids + a legend. One character per tile.
+maps/*.json          ASCII grids + a legend. One character per tile. Optional
+                     "lighting" block: a profile name + overrides.
 data/npcs/*.json     display name, sprite, dialogue id, behaviour.
+data/lighting/*.json named lighting profiles (ambient + directional).
 dialogue/*.json      a node graph: text, choices, flags.
-assets/tiles/        tiles.json is the source; terrain.png and terrain.tres are generated.
+assets/tiles/        tiles.json is the source (atlas cells, solidity, lighting
+                     metadata); terrain*.png and terrain.tres are generated.
+assets/lights/       GENERATED light falloff textures.
+assets/shaders/      hand-written canvas shaders (tile emission).
 assets/packs/        imported art. Sheets are sources; see the README in there.
-scripts/             game code. map_data.gd holds the validator, iso.gd the projection.
+scripts/             game code. map_data.gd holds the validator, iso.gd the
+                     projection, world_lighting.gd the lighting runtime.
 tools/pixel.py       canvas, PNG, palette, and the diamond primitives. Shared by all renderers.
 docs/art/            GENERATED contact sheets and map renders. Look at these.
+docs/architecture/   lighting design doc + the scoped AGENTS.md for maps/assets.
 scenes/              player, npc, dialogue box, world, title. Nothing content-shaped.
 tests/               the suite. Add to it whenever you add a mechanic.
 tools/               generators and ci.sh.
@@ -157,6 +173,11 @@ You get these for free; do not re-implement them.
 - Every flag a conversation sets is read by some conversation.
 - The baked tileset matches `tiles.json`, tile for tile and solid for solid,
   and is still an isometric diamond grid of the size the registry declares.
+- Every map's `lighting` block resolves: the profile exists and every value is
+  well-formed. Every tile's lighting metadata fits the schema, baked occluder
+  polygons and generated emission pixels match it exactly, emitting tiles
+  spawn real lights that are cleared on map change, and a map with no
+  `lighting` block renders full-bright, exactly as it did before the system.
 - `scripts/iso.gd` still projects cells exactly where a real `TileMapLayer`
   puts them, in both directions.
 - Every tile stands on its ground diamond: art may rise as far above its cell

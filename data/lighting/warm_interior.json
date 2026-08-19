@@ -1,0 +1,8 @@
+{
+  "_comment": "A lived-in room: hearths, lamps, wood. Ambient is dimmed and warmed rather than dark -- interiors still have to be playable -- and there is no sun indoors.",
+  "ambient_color": "e6c69e",
+  "ambient_energy": 0.78,
+  "directional": {
+    "enabled": false
+  }
+}

@@ -1,12 +1,16 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/world.gd" id="1_world"]
 [ext_resource type="Script" path="res://scripts/map_loader.gd" id="2_loader"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="3_player"]
 [ext_resource type="PackedScene" path="res://scenes/ui/dialogue_box.tscn" id="4_dialogue"]
+[ext_resource type="Script" path="res://scripts/world_lighting.gd" id="5_lighting"]
 
 [node name="World" type="Node2D"]
 script = ExtResource("1_world")
+
+[node name="Lighting" type="Node2D" parent="."]
+script = ExtResource("5_lighting")
 
 [node name="MapLoader" type="Node2D" parent="."]
 script = ExtResource("2_loader")

@@ -52,6 +52,8 @@ func test_generated_assets_exist() -> void:
 		"res://assets/tiles/tiles.json",
 		"res://assets/tiles/terrain.png",
 		"res://assets/tiles/terrain.tres",
+		"res://assets/tiles/terrain_emission.png",
+		"res://assets/lights/point_light.png",
 		"res://assets/sprites/actors.png",
 		"res://assets/sprites/actors.json",
 		"res://scenes/main.tscn",

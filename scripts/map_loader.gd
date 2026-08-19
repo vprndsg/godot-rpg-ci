@@ -8,6 +8,12 @@ extends Node2D
 
 const TILESET_PATH := "res://assets/tiles/terrain.tres"
 const NPC_SCENE := preload("res://scenes/npc.tscn")
+## Self-lit pixels for tiles flagged "emission" in tiles.json: an atlas laid
+## out exactly like terrain.png (tools/gen_art.py::build_emission) that a
+## layer shader mixes back in after ambient darkening. Both are optional --
+## with either missing, tiles simply darken like everything else.
+const EMISSION_ATLAS := "res://assets/tiles/terrain_emission.png"
+const EMISSION_SHADER := "res://assets/shaders/tile_emission.gdshader"
 
 signal map_loaded(map: MapData)
 
@@ -21,6 +27,8 @@ var sorted: Node2D
 var current: MapData = null
 
 var _tileset: TileSet = null
+var _emission_material: ShaderMaterial = null
+var _emission_checked := false
 
 
 func _ready() -> void:
@@ -43,7 +51,22 @@ func _make_layer(layer_name: String, y_sorted: bool) -> TileMapLayer:
 	layer.tile_set = _get_tileset()
 	layer.y_sort_enabled = y_sorted
 	layer.collision_enabled = true
+	layer.material = _get_emission_material()
 	return layer
+
+
+## One shared material puts the emission atlas on every tile layer; per-cell
+## behaviour falls out of the UVs, so no tile is ever special-cased here.
+func _get_emission_material() -> ShaderMaterial:
+	if _emission_checked:
+		return _emission_material
+	_emission_checked = true
+	if not ResourceLoader.exists(EMISSION_ATLAS) or not ResourceLoader.exists(EMISSION_SHADER):
+		return null
+	_emission_material = ShaderMaterial.new()
+	_emission_material.shader = load(EMISSION_SHADER)
+	_emission_material.set_shader_parameter("emission_atlas", load(EMISSION_ATLAS))
+	return _emission_material
 
 
 func _get_tileset() -> TileSet:

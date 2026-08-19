@@ -1,0 +1,12 @@
+{
+  "_comment": "Low sun, long light. Ambient dims toward amber and the directional wash carries most of the warmth, so lamps and windows start to matter.",
+  "ambient_color": "d9b494",
+  "ambient_energy": 0.8,
+  "directional": {
+    "enabled": true,
+    "color": "ffb36b",
+    "energy": 0.16,
+    "angle_degrees": -15,
+    "height": 0.3
+  }
+}

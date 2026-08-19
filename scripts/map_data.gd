@@ -30,6 +30,10 @@ const DEFAULT_BACKGROUND := "0d151c"
 var id: String = ""
 var display_name: String = ""
 var background: Color = Color.html(DEFAULT_BACKGROUND)
+## The raw "lighting" block: a profile name plus overrides, or {} for the
+## full-bright default. scripts/lighting_profile.gd resolves it; the world's
+## Lighting node applies it. Kept raw here so MapData stays a pure parser.
+var lighting: Dictionary = {}
 var legend: Dictionary = {}
 var layers: Dictionary = {}          # layer name -> PackedStringArray of rows
 var spawns: Dictionary = {}          # spawn id -> Vector2i
@@ -101,6 +105,12 @@ func _from_dict(raw: Dictionary) -> void:
 		background = Color.html(colour)
 	else:
 		parse_errors.append("background '%s' is not an html colour like '0d151c'" % colour)
+
+	var raw_lighting: Variant = raw.get("lighting", {})
+	if raw_lighting is Dictionary:
+		lighting = raw_lighting
+	else:
+		parse_errors.append("'lighting' must be an object like {\"profile\": \"outdoor_day\"}")
 
 	for layer_name: String in LAYERS:
 		var rows: PackedStringArray = []
@@ -255,7 +265,10 @@ func validate() -> PackedStringArray:
 			if rows[y].length() != width:
 				errors.append("layer '%s' row %d is %d chars, expected %d" % [layer_name, y, rows[y].length(), width])
 
-	# 2. legend is complete and points at real tiles
+	# 2. the lighting block resolves: profile exists, values are well-formed
+	errors.append_array(LightingProfile.validate_spec(lighting, "lighting"))
+
+	# 3. legend is complete and points at real tiles
 	for ch: String in legend:
 		if ch.length() != 1:
 			errors.append("legend key '%s' must be exactly one character" % ch)
@@ -277,7 +290,7 @@ func validate() -> PackedStringArray:
 		if not used.has(ch):
 			errors.append("legend defines '%s' (%s) but no layer uses it" % [ch, legend[ch]])
 
-	# 3. spawn points must exist and be standable
+	# 4. spawn points must exist and be standable
 	if spawns.is_empty():
 		errors.append("map has no spawns -- add at least a 'start'")
 	for spawn_id: String in spawns:
@@ -290,7 +303,7 @@ func validate() -> PackedStringArray:
 	var origin := primary_spawn()
 	var reachable := reachable_from(origin) if in_bounds(origin) and not is_solid(origin) else {}
 
-	# 4. portals lead somewhere real, and the player can actually get to them
+	# 5. portals lead somewhere real, and the player can actually get to them
 	var occupied: Dictionary = {}
 	for portal: Dictionary in portals:
 		var cell: Vector2i = portal.get("at", Vector2i(-1, -1))
@@ -316,7 +329,7 @@ func validate() -> PackedStringArray:
 			errors.append("two portals share cell %s" % cell)
 		occupied[cell] = true
 
-	# 5. NPCs stand on floor, are reachable, and are not inside each other
+	# 6. NPCs stand on floor, are reachable, and are not inside each other
 	var actors: Dictionary = {}
 	for npc: Dictionary in npcs:
 		var cell: Vector2i = npc.get("at", Vector2i(-1, -1))
@@ -340,7 +353,7 @@ func validate() -> PackedStringArray:
 		if not FACINGS.has(facing):
 			errors.append("%s has facing '%s'; expected one of %s" % [label, facing, FACINGS])
 
-	# 6. signs need text, a solid tile to be mounted on, and an adjacent
+	# 7. signs need text, a solid tile to be mounted on, and an adjacent
 	#    walkable cell -- a sign you cannot stand next to is unreadable
 	for sign_data: Dictionary in signs:
 		var cell: Vector2i = sign_data.get("at", Vector2i(-1, -1))

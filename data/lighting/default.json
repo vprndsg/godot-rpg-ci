@@ -1,0 +1,8 @@
+{
+  "_comment": "The identity environment: full-bright white ambient, no sun. A map with no \"lighting\" key resolves to this, which is what keeps every pre-lighting map rendering exactly as it always did.",
+  "ambient_color": "ffffff",
+  "ambient_energy": 1.0,
+  "directional": {
+    "enabled": false
+  }
+}

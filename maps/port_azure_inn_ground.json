@@ -1,6 +1,10 @@
 {
   "id": "port_azure_inn_ground",
   "display_name": "The Salt & Sextant",
+  "lighting": {
+    "profile": "warm_interior",
+    "ambient_energy": 0.72
+  },
   "legend": {
     ">": "stairs_up",
     "C": "counter",

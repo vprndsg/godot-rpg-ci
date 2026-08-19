@@ -651,6 +651,56 @@ def t_bush(c, ox, oy):
         c.set(ox + x, oy + y, CLEAR)
 
 
+# --------------------------------------------------------------------------
+# emission painters -- the pixels of a tile that stay lit in the dark
+#
+# A tile with "lighting": {"emission": true} in tiles.json must have an
+# e_<name> painter here, and vice versa; build_emission() fails on any
+# mismatch. Each painter draws *only the glowing pixels* of its tile, at the
+# same coordinates as the diffuse painter, into terrain_emission.png -- an
+# atlas laid out exactly like terrain.png. At runtime a shader on the tile
+# layers replaces those pixels after ambient darkening, so a lamp's flame
+# stays warm at midnight while its post goes dark with everything else.
+# Alpha is emission strength: 255 replaces the lit pixel outright, less mixes.
+# --------------------------------------------------------------------------
+
+def e_lamp(c, ox, oy):
+    # The lantern's glass interior, mirroring t_lamp's geometry exactly.
+    top = FOOT - 18
+    for y in range(1, 6):
+        for x in range(13, 19):
+            c.set(ox + x, oy + top + y, P["fire_hi"])
+    for x in range(14, 18):
+        c.set(ox + x, oy + top + 3, rgb("fff3c4"))
+
+
+def e_fireplace(c, ox, oy):
+    # The firebox flames -- same columns, rows and noise salt as t_fireplace,
+    # so emission covers precisely the pixels the diffuse painter made fire.
+    for x, top, bottom in faces(WALL_H):
+        if not 11 <= x <= 20:
+            continue
+        for y in range(bottom - 4, bottom + 1):
+            heat = noise(ox + x, oy + y, 13)
+            c.set(ox + x, oy + FOOT + y,
+                  P["fire_hi"] if heat > 0.72 else (P["fire"] if heat > 0.3 else P["fire_lo"]))
+
+
+def e_window(c, ox, oy):
+    # The glass panes from t_window: frame and mullion stay dark, glass glows.
+    for x, top, bottom in faces(WALL_H):
+        if not 9 <= x <= 22 or 15 <= x <= 16:
+            continue
+        for y in range(top + 4, top + 11):
+            col = P["glass_hi"] if (x + y) % 7 == 0 else P["glass"]
+            c.set(ox + x, oy + FOOT + y, col)
+
+
+EMISSION_PAINTERS = {
+    "fireplace": e_fireplace, "lamp": e_lamp, "window": e_window,
+}
+
+
 PAINTERS = {
     "grass": t_grass, "grass_flower": t_grass_flower, "dirt": t_dirt,
     "stone_path": t_stone_path, "water": t_water, "sand": t_sand,
@@ -721,6 +771,69 @@ def build_terrain():
             c.set(ax * CW + x, ay * CH + y, colour)
 
     c.save(os.path.join(ROOT, "assets/tiles/terrain.png"))
+
+
+def build_emission():
+    """Compose terrain_emission.png: the self-lit pixels of emissive tiles.
+
+    Same dimensions and cell layout as terrain.png -- the runtime shader
+    samples both atlases with the same UVs, so any size drift would smear
+    glow across the wrong tiles. Almost every cell is transparent; only tiles
+    flagged "emission" in tiles.json draw anything, and the flag and the
+    painter table must agree exactly or somebody's lamp silently never glows.
+    """
+    reg = json.load(open(os.path.join(ROOT, "assets/tiles/tiles.json")))
+    cols = reg["atlas_columns"]
+    rows = max(t["atlas"][1] for t in reg["tiles"].values()) + 1
+    c = Canvas(cols * CW, rows * CH)
+
+    flagged = sorted(
+        name for name, info in reg["tiles"].items()
+        if isinstance(info.get("lighting"), dict) and info["lighting"].get("emission"))
+    missing = sorted(set(flagged) - set(EMISSION_PAINTERS))
+    if missing:
+        raise SystemExit(
+            "tiles.json flags tiles as emissive with no e_<name> painter here: %s "
+            "(packs cannot supply emission pixels yet -- draw a painter)" % ", ".join(missing))
+    orphaned = sorted(set(EMISSION_PAINTERS) - set(flagged))
+    if orphaned:
+        raise SystemExit(
+            "emission painters exist for tiles not flagged \"emission\" in tiles.json: %s"
+            % ", ".join(orphaned))
+
+    for name in flagged:
+        ax, ay = reg["tiles"][name]["atlas"]
+        EMISSION_PAINTERS[name](c, ax * CW, ay * CH)
+    c.save(os.path.join(ROOT, "assets/tiles/terrain_emission.png"))
+
+
+def build_lights():
+    """Draw the default PointLight2D falloff into assets/lights/point_light.png.
+
+    A 64x64 radial glow quantized into discrete rings, because a smooth
+    gradient magnified over crisp pixels reads as a vector overlay. Rendered
+    with nearest filtering the stepped rings stay chunky at any window scale.
+    White with brightness in both rgb and alpha, so the runtime tints it via
+    Light2D.color and the same texture serves every emitter.
+    """
+    size = 64
+    steps = 6
+    c = Canvas(size, size)
+    centre = (size - 1) / 2.0
+    for y in range(size):
+        for x in range(size):
+            d = ((x - centre) ** 2 + (y - centre) ** 2) ** 0.5 / (size / 2.0)
+            if d >= 1.0:
+                continue
+            t = (1.0 - d) ** 1.5
+            level = round(t * steps) / steps
+            v = int(level * 255 + 0.5)
+            if v == 0:
+                continue
+            c.set(x, y, (v, v, v, v))
+    path = os.path.join(ROOT, "assets/lights/point_light.png")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    c.save(path)
 
 
 # --------------------------------------------------------------------------
@@ -852,4 +965,6 @@ def build_actors():
 
 if __name__ == "__main__":
     build_terrain()
+    build_emission()
+    build_lights()
     build_actors()
