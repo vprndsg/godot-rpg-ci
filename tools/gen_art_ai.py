@@ -2,7 +2,7 @@
 """Generate reference art with an OpenAI image model, to draw *from*.
 
     export OPENAI_API_KEY=sk-...
-    python3 tools/gen_art_ai.py "SNES-era grass-to-shoreline transition, top-down, 16px tiles"
+    python3 tools/gen_art_ai.py "SNES-era grass-to-shoreline transition, isometric 2:1 diamond tiles"
     python3 tools/gen_art_ai.py --model gpt-image-1.5 --size 1024x1024 "bartender portrait"
 
 Writes docs/art/refs/<slug>.png, which is gitignored.
@@ -12,6 +12,10 @@ assets/ -- the shipped art stays reproducible from tools/gen_art.py, which is
 what makes the CI drift check meaningful and every art change reviewable as a
 diff. The workflow is: generate a reference, look at it, then write the
 painter that matches it in the project's palette.
+
+Ask for isometric references, not top-down ones: the world is a 2:1 diamond
+grid, and a reference drawn from overhead tells you nothing about the two
+faces of a wall or where a roof's eaves fall.
 
 Standard library only (urllib), so there is no `openai` package to install.
 
