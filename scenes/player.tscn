@@ -1,8 +1,9 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/actor_sprite.gd" id="2_sprite"]
 [ext_resource type="Texture2D" path="res://assets/sprites/actors.png" id="3_sheet"]
+[ext_resource type="Script" path="res://scripts/game_camera.gd" id="4_camera"]
 
 [sub_resource type="ConvexPolygonShape2D" id="ConvexPolygonShape2D_body"]
 points = PackedVector2Array(0, -3, 6, 0, 0, 3, -6, 0)
@@ -37,3 +38,4 @@ shape = SubResource("ConvexPolygonShape2D_reach")
 [node name="Camera" type="Camera2D" parent="."]
 position_smoothing_enabled = true
 position_smoothing_speed = 8.0
+script = ExtResource("4_camera")

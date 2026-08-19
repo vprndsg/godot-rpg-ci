@@ -64,6 +64,18 @@ func _physics_process(delta: float) -> void:
 	interactor.position = Iso.grid_vector(_facing_step()) * REACH
 
 
+## Put the player on a cell, feet and drawing together.
+##
+## A teleport is not a walk: spawning, changing map, a cutscene or a
+## screenshot must land at the new terrain height immediately, where walking
+## onto a hill eases the sprite up over a few frames.
+func place_on(cell: Vector2i) -> void:
+	if map != null:
+		global_position = map.flat_world_position(cell)
+	_snap_lift = true
+	_update_lift()
+
+
 ## Keep the drawing on top of the terrain the feet are standing on.
 func _update_lift() -> void:
 	if map == null:

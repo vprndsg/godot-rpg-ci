@@ -60,6 +60,42 @@ point the sprite stands on. Everything else about fitting foreign art to this
 grid falls out of it. If a sprite lands too high or too low, the anchor is
 wrong; nothing else needs touching.
 
+## Lighting-aware packs
+
+Lighting behaviour is not part of the manifest, because it is not part of the
+pixels: it lives on the tile entry in `tiles.json`, exactly as it does for
+drawn tiles. An imported bollard that should glow is:
+
+```json
+"bollard": {
+  "atlas": [2, 4], "solid": true, "pack": "example-harbour",
+  "lighting": { "emit": { "color": "ffd27a", "radius": 36, "offset": [0, -12] } }
+}
+```
+
+and an imported wall that should block light adds
+`"lighting": { "occluder": true }`. Emitters, occluders and everything else in
+the schema (`docs/architecture/AGENTS.md`) work identically for pack tiles —
+the runtime cannot tell where a tile's pixels came from. So a redwood pack
+says "collide on my whole diamond, occlude on my trunk
+(`{\"shape\": \"diamond\", \"scale\": 0.5}`), emit nothing", and a saloon pack
+gives its walls `occluder: true`, its lamps an `emit`, and its windows
+`emission` — all in `tiles.json`, no engine changes.
+
+Two lighting features have a naming convention reserved but no slicer yet:
+
+- `sheet_normal.png` — a normal map, layout-identical to `sheet.png`, sliced
+  into `terrain_normal.png` (which `tools/build_tileset.gd` already wires into
+  a `CanvasTexture` the moment the file exists). Neutral flat is `8080ff`.
+- `sheet_emission.png` — self-lit pixels, layout-identical, sliced into
+  `terrain_emission.png` alongside the `e_<name>` painters.
+
+Until the slicing lands in `tools/gen_art.py`/`tools/packs.py`, a pack tile
+flagged `"emission": true` fails the build with a clear message (it needs an
+`e_<name>` painter today), and normal maps for pack art wait with normal maps
+for everything else. Build the slicer before shipping a pack that needs
+either; the file names above are the contract to build against.
+
 ## When a pack does not fit
 
 `tools/ci.sh art` reports two distinct failures, with different fixes.

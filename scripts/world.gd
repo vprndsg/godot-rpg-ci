@@ -5,8 +5,9 @@ extends Node2D
 const DEFAULT_MAP := "port_azure_town"
 
 @onready var loader: MapLoader = $MapLoader
+@onready var lighting: WorldLighting = $Lighting
 @onready var player: Player = $Player
-@onready var camera: Camera2D = $Player/Camera
+@onready var camera: GameCamera = $Player/Camera
 
 signal ready_for_play
 
@@ -27,7 +28,8 @@ func enter(map_id: String, spawn_id: String = "start") -> MapData:
 	GameState.current_spawn = spawn_id
 	player.map = map
 	player.global_position = loader.spawn_position(spawn_id)
-	_fit_camera(map)
+	camera.fit_to_map(map)
+	lighting.apply_map(map)
 	# What the camera sees past the corners of a diamond-shaped map.
 	RenderingServer.set_default_clear_color(map.background)
 	return map
@@ -35,23 +37,3 @@ func enter(map_id: String, spawn_id: String = "start") -> MapData:
 
 func _on_map_requested(map_id: String, spawn_id: String) -> void:
 	enter(map_id, spawn_id)
-
-
-## Keep the camera inside the map so small interiors do not show the void.
-func _fit_camera(map: MapData) -> void:
-	# A diamond grid is not the rectangle its cell counts suggest: it leans
-	# left as it descends, so the far corner of a tall map sits at negative x.
-	var bounds := Iso.grid_bounds(Vector2i(map.width, map.height))
-	camera.limit_left = int(bounds.position.x)
-	# Tall tiles draw above the cell they stand on, so give the back row its
-	# headroom rather than slicing the tops off the far wall -- and raised
-	# terrain lifts everything on it by another level's worth each.
-	camera.limit_top = int(bounds.position.y) - TileRegistry.footprint_top() \
-		- int(map.max_elevation() * Iso.ELEVATION_HEIGHT)
-	camera.limit_right = int(bounds.end.x)
-	camera.limit_bottom = int(bounds.end.y)
-
-	var view := get_viewport_rect().size
-	# A map narrower than the screen would jitter against its own limits;
-	# centre it instead of clamping.
-	camera.position_smoothing_enabled = bounds.size.x > view.x and bounds.size.y > view.y

@@ -7,6 +7,7 @@
 #   tools/ci.sh generate   regenerate the art, the baked tileset and the sheets
 #   tools/ci.sh sheets     re-render docs/art/ only (no Godot needed)
 #   tools/ci.sh art        check every tile stands on the grid (no Godot needed)
+#   tools/ci.sh shots      screenshot the running game into docs/shots/ (needs xvfb)
 #   tools/ci.sh test       run the headless test suite
 #   tools/ci.sh export     build the web export into build/web/
 #   tools/ci.sh all        import + test + export
@@ -113,6 +114,20 @@ cmd_generate() {
   cmd_sheets
 }
 
+# The only way to look at lighting. The Python renderers read terrain.png and
+# the map JSON directly, so they cannot show an ambient modulate, a light
+# falloff or a baked occluder -- those exist only once Godot is drawing. This
+# runs the real game on a virtual display and saves frames to docs/shots/.
+cmd_shots() {
+  need_godot
+  command -v xvfb-run >/dev/null || die "shots needs xvfb-run (apt-get install xvfb)"
+  say "Screenshotting the running game"
+  # Not run_godot: this one needs a display, so --headless is exactly wrong.
+  xvfb-run -a "$GODOT_BIN" --path "$ROOT" --rendering-driver opengl3 \
+    --resolution 960x576 --script res://tools/shoot.gd
+  ls -la "$ROOT/docs/shots"
+}
+
 cmd_test() {
   need_godot
   say "Running tests"
@@ -140,8 +155,9 @@ case "${1:-all}" in
   generate) cmd_generate ;;
   sheets)   cmd_sheets ;;
   art)      cmd_art ;;
+  shots)    cmd_shots ;;
   test)     shift; cmd_test "$@" ;;
   export)   cmd_export ;;
   all)      cmd_import; cmd_test; cmd_export ;;
-  *)        die "unknown command '$1' (try: setup, import, generate, sheets, art, test, export, all)" ;;
+  *)        die "unknown command '$1' (try: setup, import, generate, sheets, art, shots, test, export, all)" ;;
 esac

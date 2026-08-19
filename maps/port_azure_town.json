@@ -2,6 +2,9 @@
   "id": "port_azure_town",
   "display_name": "Port Azure",
   "background": "101c18",
+  "lighting": {
+    "profile": "outdoor_evening"
+  },
   "legend": {
     ",": "grass_flower",
     ".": "grass",

@@ -1,0 +1,12 @@
+{
+  "_comment": "Night under a clear moon. Cool, dim ambient; a faint blue directional. Point lights and emissive tiles do the real work of making places readable.",
+  "ambient_color": "8fa3c8",
+  "ambient_energy": 0.5,
+  "directional": {
+    "enabled": true,
+    "color": "bcd2ff",
+    "energy": 0.1,
+    "angle_degrees": 25,
+    "height": 0.6
+  }
+}

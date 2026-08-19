@@ -1,0 +1,8 @@
+{
+  "_comment": "Cellars, holds, sealed rooms. Dim and cool: local light sources are the only warmth. Keep at least one emitter in any map that uses this, or the player is navigating soup.",
+  "ambient_color": "6f7890",
+  "ambient_energy": 0.45,
+  "directional": {
+    "enabled": false
+  }
+}

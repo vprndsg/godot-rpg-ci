@@ -1,0 +1,12 @@
+{
+  "_comment": "Clear coastal daylight. Ambient stays close to white so the palette reads as painted; the sun is a faint warm wash that will start modelling forms once tiles carry normal maps.",
+  "ambient_color": "f2f4ec",
+  "ambient_energy": 0.96,
+  "directional": {
+    "enabled": true,
+    "color": "fff0d0",
+    "energy": 0.1,
+    "angle_degrees": -35,
+    "height": 0.5
+  }
+}
