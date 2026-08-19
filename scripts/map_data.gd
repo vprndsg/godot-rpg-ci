@@ -27,6 +27,10 @@ const FACINGS: PackedStringArray = ["down", "left", "right", "up"]
 ## what is out there: open water off a coast, unlit night around a room.
 const DEFAULT_BACKGROUND := "0d151c"
 
+## The four grid neighbours. Walkability is 4-connected however the world is
+## projected, so the flood fill and the validator both step by these.
+const NEIGHBOURS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+
 var id: String = ""
 var display_name: String = ""
 var background: Color = Color.html(DEFAULT_BACKGROUND)
@@ -310,12 +314,17 @@ func reachable_from(origin: Vector2i) -> Dictionary:
 	var seen: Dictionary = {}
 	if not in_bounds(origin) or is_solid(origin):
 		return seen
+	# The queue is walked with a cursor rather than pop_front(): taking the
+	# head off an Array shifts everything behind it, so every cell would cost
+	# a copy of the whole frontier. Advancing an index visits the cells in
+	# the same breadth-first order and never moves one.
 	var queue: Array[Vector2i] = [origin]
 	seen[origin] = true
-	const STEPS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
-	while not queue.is_empty():
-		var cell: Vector2i = queue.pop_front()
-		for step: Vector2i in STEPS:
+	var head := 0
+	while head < queue.size():
+		var cell := queue[head]
+		head += 1
+		for step: Vector2i in NEIGHBOURS:
 			var next := cell + step
 			if seen.has(next) or not can_move(cell, next):
 				continue
@@ -472,8 +481,8 @@ func validate() -> PackedStringArray:
 		var label := "npc '%s' at %s" % [npc_id, cell]
 		if npc_id.is_empty():
 			errors.append("an npc entry is missing its 'npc' id")
-		elif not FileAccess.file_exists("res://data/npcs/%s.json" % npc_id):
-			errors.append("%s has no definition at data/npcs/%s.json" % [label, npc_id])
+		elif not Npc.def_exists(npc_id):
+			errors.append("%s has no definition at %s" % [label, Npc.def_path(npc_id).trim_prefix("res://")])
 		if not in_bounds(cell):
 			errors.append("%s is outside the map" % label)
 			continue
@@ -501,7 +510,7 @@ func validate() -> PackedStringArray:
 		if actors.has(cell):
 			errors.append("%s shares a cell with npc '%s'" % [label, actors[cell]])
 		var adjacent_ok := false
-		for step: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		for step: Vector2i in NEIGHBOURS:
 			if reachable.has(cell + step):
 				adjacent_ok = true
 				break

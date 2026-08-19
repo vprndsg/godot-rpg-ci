@@ -12,12 +12,18 @@ var prompt: String = ""
 var requires_interact := false
 
 
+## Wired here rather than in configure(): entering the tree happens exactly
+## once, where configure() is an ordinary setter a caller may reasonably call
+## twice -- and a second connection would travel twice on one footstep.
+func _ready() -> void:
+	body_entered.connect(_on_body_entered)
+
+
 func configure(map_id: String, spawn_id: String, portal_prompt: String, interact_only: bool) -> void:
 	target_map = map_id
 	target_spawn = spawn_id
 	prompt = portal_prompt
 	requires_interact = interact_only
-	body_entered.connect(_on_body_entered)
 
 
 func _on_body_entered(body: Node2D) -> void:

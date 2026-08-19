@@ -38,7 +38,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from pixel import ROOT, geometry, load_png
+from pixel import ROOT, footprint_top, geometry, load_png
 
 PACKS_DIR = os.path.join(ROOT, "assets/packs")
 
@@ -119,9 +119,9 @@ def offset(manifest):
     Our ground diamond is centred in our cell; the pack's anchor is the point
     that has to sit at that centre. The difference is the whole transform.
     """
-    tw, th, cw, ch = geometry()
+    _, th, cw, _ = geometry()
     ax, ay = manifest["anchor"]
-    return (cw // 2 - ax, (ch - th) // 2 + th // 2 - ay)
+    return (cw // 2 - ax, footprint_top() + th // 2 - ay)
 
 
 def cell_pixels(manifest, tile_name, sheet=None):

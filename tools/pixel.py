@@ -94,9 +94,22 @@ class Canvas:
         self.set(x, y, out + (max(dst[3], c[3]),))
 
     def rect(self, x, y, w, h, c):
-        for yy in range(y, y + h):
-            for xx in range(x, x + w):
-                self.set(xx, yy, c)
+        """A solid rectangle, clipped to the canvas.
+
+        Written a row at a time rather than pixel by pixel: this is where
+        every renderer spends its time (a magnified map stamps one of these
+        per source pixel), and a slice assignment moves a whole row in one
+        step instead of re-checking bounds for each of its pixels.
+        """
+        x0, x1 = max(0, x), min(self.w, x + w)
+        y0, y1 = max(0, y), min(self.h, y + h)
+        if x0 >= x1 or y0 >= y1:
+            return
+        row = bytes(c) * (x1 - x0)
+        span = len(row)
+        for yy in range(y0, y1):
+            i = (yy * self.w + x0) * 4
+            self.px[i:i + span] = row
 
     def hline(self, x, y, w, c):
         self.rect(x, y, w, 1, c)
@@ -249,25 +262,6 @@ def fill_diamond(c, ox, oy, colour, w=None, h=None):
     for y in range(h):
         x0, width = diamond_span(y, w, h)
         c.rect(ox + x0, oy + y, width, 1, colour)
-
-
-def diamond_edge(c, ox, oy, colour, side, w=None, h=None, inset=0):
-    """Trace one of the diamond's four edges.
-
-    `side` is "nw", "ne", "se" or "sw" -- the compass of the screen, so "ne"
-    is the edge a tile shares with the cell one step north on the grid.
-    """
-    if w is None:
-        w, h = geometry()[:2]
-    for y in range(h):
-        x0, width = diamond_span(y, w, h)
-        top = y < h // 2
-        if side in ("nw", "sw"):
-            x = x0 + inset
-        else:
-            x = x0 + width - 1 - inset
-        if (side in ("nw", "ne")) == top:
-            c.set(ox + x, oy + y, colour)
 
 
 def prism(c, ox, oy, height, top, left, right, w=None, h=None):

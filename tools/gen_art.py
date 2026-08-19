@@ -41,12 +41,12 @@ import packs
 
 from pixel import (  # noqa: F401  (rgb/CLEAR used by painters)
     ROOT, Canvas, CLEAR, P, blob, diamond_floor, diamond_pixels, diamond_span,
-    fill_diamond, geometry, in_diamond, level_px, load_png, noise, prism, rgb,
-    shade,
+    fill_diamond, footprint_top, geometry, in_diamond, level_px, load_png,
+    noise, prism, rgb, shade,
 )
 
 TW, TH, CW, CH = geometry()   # diamond 32x16 inside a 32x64 cell
-FOOT = (CH - TH) // 2         # 24 -- first row of the footprint in a cell
+FOOT = footprint_top()        # 24 -- first row of the footprint in a cell
 
 # How tall things stand, in pixels above their own ground. FOOT is the ceiling:
 # anything taller would climb out of its cell and be clipped.

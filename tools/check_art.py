@@ -25,7 +25,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import packs
-from pixel import ROOT, geometry, load_png
+from pixel import ROOT, footprint_top, geometry, load_png
 
 # A pixel is judged by its centre, and a sprite is allowed to touch the very
 # edge of its footprint, so compare against the diamond with half a pixel of
@@ -33,7 +33,7 @@ from pixel import ROOT, geometry, load_png
 SLACK = 0.5
 
 
-def ground_limit(x, tw, th, cw, ch):
+def ground_limit(x, tw, th, cw):
     """Lowest row an opaque pixel may occupy in column x.
 
     The ground diamond's lower boundary, as a continuous line rather than the
@@ -41,7 +41,7 @@ def ground_limit(x, tw, th, cw, ch):
     only to stay on the surface it describes.
     """
     centre_x = cw / 2.0
-    centre_y = (ch - th) / 2.0 + th / 2.0
+    centre_y = footprint_top() + th / 2.0
     across = abs(x + 0.5 - centre_x) / (tw / 2.0)
     return centre_y + (th / 2.0) * (1.0 - across)
 
@@ -52,7 +52,7 @@ def check_atlas():
     atlas_path = os.path.join(ROOT, registry["atlas"].replace("res://", ""))
     atlas = load_png(atlas_path)
 
-    limits = [ground_limit(x, tw, th, cw, ch) + SLACK for x in range(cw)]
+    limits = [ground_limit(x, tw, th, cw) + SLACK for x in range(cw)]
     failures = []
 
     for name in sorted(registry["tiles"]):

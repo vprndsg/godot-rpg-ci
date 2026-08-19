@@ -251,3 +251,30 @@ func test_saving_and_loading_round_trips() -> void:
 	ok(GameState.has_flag("ledger_started"), "flag did not survive the save round trip")
 	equal(GameState.current_map, "port_azure_inn_ground", "current map did not survive the save")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameState.SAVE_PATH))
+
+
+## A doorway must fire once per footstep.
+##
+## Portals trigger on body entry, so a second `body_entered` connection would
+## travel twice on one step -- and the second Router.travel() lands after the
+## first has already changed map, sending the player somewhere they never
+## walked. Configuration is separate from wiring for exactly this reason;
+## this is the assertion that keeps it that way.
+func test_each_portal_is_wired_to_travel_once() -> void:
+	await _boot()
+	if world == null:
+		return
+	for map_id: String in MapData.all_ids():
+		world.enter(map_id)
+		await frames(2)
+		var found := 0
+		for node: Node in world.loader.sorted.get_children():
+			if not (node is Portal):
+				continue
+			found += 1
+			var portal: Portal = node
+			equal(portal.body_entered.get_connections().size(), 1,
+				"portal to '%s' on '%s' must answer a footstep exactly once"
+					% [portal.target_map, map_id])
+		equal(found, world.loader.current.portals.size(),
+			"map '%s' places %d portals but spawned %d" % [map_id, world.loader.current.portals.size(), found])

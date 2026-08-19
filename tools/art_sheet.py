@@ -25,8 +25,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from pixel import (
-    ROOT, Canvas, P, blit, diamond_span, draw_text, geometry, load_png, rgb,
-    text_width,
+    ROOT, Canvas, P, blit, diamond_span, draw_text, footprint_top, geometry,
+    load_png, rgb, text_width,
 )
 
 BG = rgb("14161c")
@@ -38,7 +38,7 @@ CHECK_A = rgb("2a2f3a")
 CHECK_B = rgb("22262f")
 
 TW, TH, CW, CH = geometry()
-FOOT = (CH - TH) // 2
+FOOT = footprint_top()
 DRAWN_H = FOOT + TH      # the cell rows a painter may use; the rest is padding
 ZOOM = 5
 ACTOR_ZOOM = 4

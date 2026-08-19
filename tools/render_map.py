@@ -27,7 +27,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from pixel import ROOT, Canvas, diamond_span, draw_text, level_px, load_png, rgb
+from pixel import (
+    ROOT, Canvas, cell_centre, diamond_span, draw_text, footprint_top, level_px,
+    load_png, rgb,
+)
 
 LAYERS = ("ground", "objects")
 # Stacked under every raised cell, one band per level -- the same tile
@@ -93,7 +96,7 @@ def render(map_id, scale=3, grid=False, annotate=False):
     atlas = load_png(os.path.join(ROOT, os.path.relpath(reg["atlas"].replace("res://", ""))))
     tw, th = (int(v) for v in reg["tile_size"])
     cw, ch = (int(v) for v in reg["cell_size"])
-    foot = (ch - th) // 2
+    foot = footprint_top()
     drawn_h = foot + th      # the cell rows a painter is allowed to use
 
     data = json.load(open(os.path.join(ROOT, "maps", map_id + ".json")))
@@ -131,10 +134,15 @@ def render(map_id, scale=3, grid=False, annotate=False):
     c.rect(0, 0, c.w, c.h, rgb("14161c"))
 
     def cell_origin(cx, cy):
-        """Top-left of a cell's atlas region, in canvas pixels."""
-        px = (cx - cy) * tw // 2 + tw // 2 + origin_x - cw // 2
-        py = (cx + cy) * th // 2 + th // 2 + origin_y - ch // 2
-        return px * scale, py * scale
+        """Top-left of a cell's atlas region, in canvas pixels.
+
+        The projection itself comes from pixel.cell_centre(), the Python half
+        of scripts/iso.gd -- spelling it out again here is how this renderer
+        would quietly start disagreeing with the engine about where a tile is.
+        """
+        centre_x, centre_y = cell_centre(cx, cy, tw, th)
+        return ((centre_x + origin_x - cw // 2) * scale,
+                (centre_y + origin_y - ch // 2) * scale)
 
     stamps = {}
     unknown = set()

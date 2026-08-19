@@ -112,14 +112,6 @@ static func imported_names() -> Array:
 	return out
 
 
-## Atlas rows actually referenced, used to size the generated tileset.
-static func atlas_rows() -> int:
-	var maxy := 0
-	for tile_name: String in tiles():
-		maxy = maxi(maxy, atlas_coords(tile_name).y)
-	return maxy + 1
-
-
 # --------------------------------------------------------------------------
 # lighting metadata
 #
