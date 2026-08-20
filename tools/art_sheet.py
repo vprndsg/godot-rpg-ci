@@ -40,8 +40,11 @@ CHECK_B = rgb("22262f")
 TW, TH, CW, CH = geometry()
 FOOT = footprint_top()
 DRAWN_H = FOOT + TH      # the cell rows a painter may use; the rest is padding
-ZOOM = 5
-ACTOR_ZOOM = 4
+# Production cells are 64x128; a 5x contact sheet would be 2500px wide, so
+# the zooms came down when the world scaled up. Derived from the geometry so
+# the sheets stay a readable size whatever the registry says.
+ZOOM = max(2, 160 // TW)
+ACTOR_ZOOM = max(2, 6 - TW // 16)
 FOOTPRINT = (255, 255, 255, 46)
 
 
@@ -110,37 +113,74 @@ def build_atlas_sheet():
 
 
 def build_actor_sheet():
+    """Every actor, every clip, every direction, every frame.
+
+    Reads the animation manifest rather than assuming a shape: one panel per
+    actor, rows for the directions it authors, and one column group per clip.
+    A character with eight directions and six clips lays itself out; these
+    four legacy characters have four directions and two clips and lay
+    themselves out too. That is the point of the manifest -- the contact sheet
+    learns the layout instead of being told it.
+    """
     manifest = json.load(open(os.path.join(ROOT, "assets/sprites/actors.json")))
     sheet = load_png(os.path.join(ROOT, "assets/sprites/actors.png"))
-    fw, fh = manifest["frame_size"]
-    dirs = manifest["directions"]
-    frames = int(manifest["frames_per_direction"])
-    actors = sorted(manifest["actors"], key=lambda k: manifest["actors"][k]["row_block"])
+    sheets = manifest["sheets"]
+    actors = sorted(manifest["actors"])
 
-    label_col = 68
-    cell_w = fw * ACTOR_ZOOM + 8
-    cell_h = fh * ACTOR_ZOOM + 8
-    block_h = len(dirs) * cell_h + 22
+    label_col = 74
+    gap = 12
+    panels = []
+    for actor in actors:
+        entry = manifest["actors"][actor]
+        source = sheets[entry["sheet"]]
+        fw, fh = entry.get("frame_size", source["frame_size"])
+        dirs = entry.get("directions", manifest["directions"])
+        clips = [(name, entry["clips"][name]) for name in sorted(entry["clips"])]
+        panels.append((actor, fw, fh, dirs, clips))
+
+    def panel_size(fw, fh, dirs, clips):
+        columns = sum(int(clip["frames"]) for _, clip in clips)
+        width = label_col + columns * (fw * ACTOR_ZOOM + 4) + gap * len(clips) + 10
+        return width, len(dirs) * (fh * ACTOR_ZOOM + 4) + 34
+
+    sizes = [panel_size(fw, fh, d, c) for _, fw, fh, d, c in panels]
     top = 46
-
-    c = Canvas(label_col + frames * cell_w + 16, top + len(actors) * block_h + 12)
+    c = Canvas(max(w for w, _ in sizes) + 12, top + sum(h + 6 for _, h in sizes) + 12)
     c.rect(0, 0, c.w, c.h, BG)
-    header(c, "ACTORS", "%d actors x %d directions x %d frames - tools/gen_art.py ACTORS"
-           % (len(actors), len(dirs), frames))
+    header(c, "ACTORS",
+           "%d actors - frame size, directions, clips, frames and fps all come from assets/sprites/actors.json"
+           % len(actors))
 
-    for a, actor in enumerate(actors):
-        block_y = top + a * block_h
-        c.rect(6, block_y, c.w - 12, block_h - 8, PANEL)
-        draw_text(c, 12, block_y + 6, actor, INK, scale_=2)
+    y = top
+    for (actor, fw, fh, dirs, clips), (panel_w, panel_h) in zip(panels, sizes):
+        c.rect(6, y, c.w - 12, panel_h, PANEL)
+        draw_text(c, 12, y + 6, actor, INK, scale_=2)
+        draw_text(c, 12 + text_width(actor, 2) + 10, y + 8,
+                  "%dX%d  ANCHOR %d,%d" % (fw, fh, *(manifest["actors"][actor].get(
+                      "anchor", sheets[manifest["actors"][actor]["sheet"]]["anchor"]))),
+                  DIM, scale_=1)
         for d, direction in enumerate(dirs):
-            row_y = block_y + 20 + d * cell_h
+            row_y = y + 28 + d * (fh * ACTOR_ZOOM + 4)
             draw_text(c, 12, row_y + fh * ACTOR_ZOOM // 2 - 2, direction, DIM, scale_=1)
-            for f in range(frames):
-                px = label_col + f * cell_w
-                checker(c, px, row_y, fw * ACTOR_ZOOM, fh * ACTOR_ZOOM, size=8)
-                blit(c, sheet, px, row_y,
-                     sx=f * fw, sy=(manifest["actors"][actor]["row_block"] * len(dirs) + d) * fh,
-                     w=fw, h=fh, factor=ACTOR_ZOOM)
+        x = label_col
+        for clip_name, clip in clips:
+            authored = clip.get("directions", dirs)
+            frames = int(clip["frames"])
+            draw_text(c, x, y + 19, "%s %gFPS%s" % (clip_name.upper(), clip.get("fps", 0),
+                                                    "" if clip.get("loop") else " ONCE"),
+                      SOLID_MARK, scale_=1)
+            for d, direction in enumerate(dirs):
+                row_y = y + 28 + d * (fh * ACTOR_ZOOM + 4)
+                if direction not in authored:
+                    continue
+                for f in range(frames):
+                    px = x + f * (fw * ACTOR_ZOOM + 4)
+                    checker(c, px, row_y, fw * ACTOR_ZOOM, fh * ACTOR_ZOOM, size=8)
+                    blit(c, sheet, px, row_y,
+                         sx=f * fw, sy=(int(clip["row"]) + authored.index(direction)) * fh,
+                         w=fw, h=fh, factor=ACTOR_ZOOM)
+            x += frames * (fw * ACTOR_ZOOM + 4) + gap
+        y += panel_h + 6
 
     c.save(os.path.join(ROOT, "docs/art/actors.png"))
 

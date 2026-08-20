@@ -35,6 +35,15 @@ If a change touches scenes, `project.godot` or anything in `assets/`, run
 | `test_maps` | Every map validates: rectangular, legend complete, everything reachable, doors two-way, world connected. |
 | `test_dialogue` | Every graph is sound and every conversation can be played to an end. |
 | `test_runtime` | The game boots, the player walks, walls stop them, doors move them, every NPC and sign can actually be interacted with. |
+| `test_iso` | The projection matches a real `TileMapLayer` at the production 64×32 geometry, and every derived dimension comes from the registry. |
+| `test_elevation` | Terrain height parses, cliffs block, stairs carry, and the player really climbs the hill. |
+| `test_lighting` | Profiles, tile lighting metadata, baked occluders, the emission atlas, and lights spawning and being swept. |
+| `test_rendering` | The presentation contract matches `project.godot`; the five depth planes exist; all collision is in the playable plane. |
+| `test_animation` | Eight directions, variable clips and frame rates, per-actor frame sizes, fallbacks, and malformed manifests. |
+| `test_camera` | FOLLOW / ROOM_LOCKED / FIXED, and a cinematic returning the camera to the mode it borrowed. |
+| `test_fx` | The effect catalog, deterministic compositing order, preset overrides, and world effects staying below the UI. |
+| `test_scenery` | Enormous sprites with one-cell footprints, and scenery never becoming collision. |
+| `test_packs` | Imported art: the `_normal`/`_emission` naming contract, licences, and pack tiles behaving like drawn ones. |
 
 ## Writing a test
 

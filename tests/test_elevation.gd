@@ -74,7 +74,7 @@ func test_world_position_rises_one_level_per_z() -> void:
 	var map := MapData.load_map("port_azure_town")
 	for cell: Vector2i in [PLATEAU, CLIFF_TOP, STAIR_BASE]:
 		var expected := Iso.cell_centre(Vector2(cell)) \
-			+ Vector2(0, -map.elevation_at(cell) * Iso.ELEVATION_HEIGHT)
+			+ Vector2(0, -map.elevation_at(cell) * Iso.elevation_height())
 		equal(map.world_position(cell), expected,
 			"world_position%s should be the flat centre lifted by its elevation" % cell)
 		equal(map.flat_world_position(cell), Iso.cell_centre(Vector2(cell)),
@@ -182,7 +182,7 @@ func test_raised_cells_are_painted_at_height() -> void:
 	if world == null:
 		return
 	var loader := world.loader
-	var lift := int(Iso.ELEVATION_HEIGHT)
+	var lift := int(Iso.elevation_height())
 
 	for level: int in [0, 1, 2]:
 		if not ok(loader.terrain_layer(level) != null, "the town needs terrain layer %d" % level):
@@ -229,8 +229,8 @@ func test_player_feet_ride_the_terrain() -> void:
 	world.player.global_position = map.flat_world_position(PLATEAU)
 	await physics_frames(40)  # let the sprite's lift easing finish
 	var sprite: ActorSprite = world.player.sprite
-	equal(sprite.ground_lift, 2.0 * Iso.ELEVATION_HEIGHT, "two levels of lift on the plateau")
-	ok(absf(sprite.position.y + 2.0 * Iso.ELEVATION_HEIGHT) < 0.5,
+	equal(sprite.ground_lift, 2.0 * Iso.elevation_height(), "two levels of lift on the plateau")
+	ok(absf(sprite.position.y + 2.0 * Iso.elevation_height()) < 0.5,
 		"the sprite should be drawn two levels above the body (at %.1f)" % sprite.position.y)
 	# Feet drawn at exactly the elevated surface the map reports.
 	ok(absf((world.player.global_position.y + sprite.position.y) - map.world_position(PLATEAU).y) < 0.5,

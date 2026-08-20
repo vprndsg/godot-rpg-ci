@@ -1,12 +1,14 @@
 {
   "_comment": "Single source of truth for tiles. Used by tools/build_tileset.gd (bakes terrain.tres), scripts/tile_registry.gd (runtime), and tests/. Add a tile here + a draw function in tools/gen_art.py, then re-run both generators.",
   "_packs": "A tile with a \"pack\" takes its pixels from assets/packs/<name>/ instead of a painter in tools/gen_art.py -- that is how third-party art gets in. The pack sheet is a committed source and terrain.png is still a build output, so the CI drift check keeps working. Add \"pack_tile\" if the pack names the tile something else.",
-  "_geometry": "The world is isometric. tile_size is the 2:1 diamond a cell covers on the ground; cell_size is the atlas cell that draws it. The diamond sits centred in the cell, so rows 24-39 are the footprint, rows 0-23 are headroom for anything tall, and rows 40-63 are the padding that keeps the footprint centred. That padding is what lets terrain.tres draw with texture_origin (0, 0): a centred region needs no offset, so there is no second place for the alignment to drift.",
-  "_elevation": "A tile with \"elevation_transition\": true may bridge exactly one elevation level: standing on it at level z, you may step to a z+1 neighbour, and step back down onto it from above. Its art rises one level (8px, half the diamond) at its back edge to meet the upper ground -- stairs climb grid -y, so put the higher terrain north of them. Without such a tile, a one-level edge is a cliff and blocks movement. 'cliff' is the band MapLoader and render_map stack under every raised cell automatically; no map legend ever names it.",
-  "_lighting": "A tile's optional \"lighting\" block declares behaviour, never nodes: \"emit\" makes the runtime spawn a PointLight2D on every cell using the tile (color/energy/radius/offset/height/shadows), \"occluder\" bakes a light-blocking polygon into terrain.tres (true = the footprint diamond, or {\"shape\": \"diamond\", \"scale\": 0.5} for a trunk, or {\"points\": [...]}), and \"emission\": true means the tile has an e_<name> painter in tools/gen_art.py whose pixels stay lit in the dark via terrain_emission.png. Schema is enforced by TileRegistry.validate_lighting(); docs/architecture/lighting.md explains it.",
+  "_geometry": "THE source of truth for the world's geometry. tile_size is the 2:1 diamond a cell covers on the ground; cell_size is the atlas cell that draws it. Nothing anywhere may hardcode these numbers: scripts/iso.gd, scripts/tile_registry.gd, tools/pixel.py, the collision shapes, the camera and every renderer read them from here. The diamond sits centred in the cell, so at 64x128 rows 48-79 are the footprint, rows 0-47 are headroom for anything tall, and rows 80-127 are the padding that keeps the footprint centred. That padding is what lets terrain.tres draw with texture_origin (0, 0): a centred region needs no offset, so there is no second place for the alignment to drift. The presentation half of the contract -- the 640x360 internal viewport -- lives in data/rendering.json.",
+  "_legacy_art": "PRODUCTION SCALE IS 64x32. The painters in tools/gen_art.py and the actor frames were composed for the old 32x16 diamond and have not been redrawn; legacy_art records the geometry they are authored at, and the generators upscale their output by an exact integer factor (nearest-neighbour, deterministic) into the production cell. That is a MIGRATION PATH, not a look: every one of these tiles is placeholder art awaiting a redraw or a pack at true 64x32 detail. New art must be authored at the production geometry above and needs no scaling. See docs/architecture/rendering.md.",
+  "_elevation": "A tile with \"elevation_transition\": true may bridge exactly one elevation level: standing on it at level z, you may step to a z+1 neighbour, and step back down onto it from above. Its art rises one level (half the diamond height -- derived from tile_size, never written down) at its back edge to meet the upper ground -- stairs climb grid -y, so put the higher terrain north of them. Without such a tile, a one-level edge is a cliff and blocks movement. 'cliff' is the band MapLoader and render_map stack under every raised cell automatically; no map legend ever names it.",
+  "_lighting": "Radii and offsets are SCREEN PIXELS at the production scale (a 640x360 viewport, a 64x32 diamond) -- they were doubled with the rest of the world in the 64x32 migration. A tile's optional \"lighting\" block declares behaviour, never nodes: \"emit\" makes the runtime spawn a PointLight2D on every cell using the tile (color/energy/radius/offset/height/shadows), \"occluder\" bakes a light-blocking polygon into terrain.tres (true = the footprint diamond, or {\"shape\": \"diamond\", \"scale\": 0.5} for a trunk, or {\"points\": [...]}), and \"emission\": true means the tile has an e_<name> painter in tools/gen_art.py whose pixels stay lit in the dark via terrain_emission.png. Schema is enforced by TileRegistry.validate_lighting(); docs/architecture/lighting.md explains it.",
   "projection": "isometric",
-  "tile_size": [32, 16],
-  "cell_size": [32, 64],
+  "tile_size": [64, 32],
+  "cell_size": [64, 128],
+  "legacy_art": { "tile_size": [32, 16], "cell_size": [32, 64], "actor_frame": [16, 24], "actor_foot_row": 22 },
   "atlas": "res://assets/tiles/terrain.png",
   "atlas_columns": 8,
   "tiles": {
@@ -44,7 +46,7 @@
     "fireplace":   { "atlas": [7, 2], "solid": true,
                      "lighting": {
                        "_comment": "No occluder: the fire light sits on this cell, and a light inside its own occluder is swallowed whole. The wall_stone neighbours block for it.",
-                       "emit": { "color": "ffa54f", "energy": 1.0, "radius": 46, "offset": [0, 4], "shadows": true },
+                       "emit": { "color": "ffa54f", "energy": 1.0, "radius": 92, "offset": [0, 8], "shadows": true },
                        "emission": true
                      } },
 
@@ -56,7 +58,7 @@
     "fence":       { "atlas": [4, 3], "solid": true  },
     "lamp":        { "atlas": [5, 3], "solid": true,
                      "lighting": {
-                       "emit": { "color": "ffd27a", "energy": 0.9, "radius": 40, "offset": [0, -22] },
+                       "emit": { "color": "ffd27a", "energy": 0.9, "radius": 80, "offset": [0, -44] },
                        "emission": true
                      } },
     "shelf":       { "atlas": [6, 3], "solid": true,

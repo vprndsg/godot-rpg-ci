@@ -2,7 +2,8 @@
 
 How Port Azure lights a 2D isometric world from data, headlessly. This is the
 implementation reference; the working rules and checklists for agents are in
-[`docs/architecture/AGENTS.md`](AGENTS.md).
+[`AGENTS.md`](AGENTS.md), and the geometry every pixel measurement below is in
+comes from [`rendering.md`](rendering.md).
 
 The system has two halves that never meet in code, only on screen:
 
@@ -62,17 +63,24 @@ World
 ├── Lighting  (scripts/world_lighting.gd; children built in code)
 │   ├── Ambient        CanvasModulate
 │   ├── Sun            DirectionalLight2D
-│   ├── DynamicLights  container, rebuilt on every map change
-│   └── Fx             reserved for screen effects (see "hooks" below)
-├── MapLoader          tile layers carry the emission ShaderMaterial
-├── Player
-│   └── Camera         scripts/game_camera.gd
+│   └── DynamicLights  container, rebuilt on every map change
+├── Planes    (scripts/scene_planes.gd)
+│   ├── ScreenBackground / FarBackground
+│   ├── Playable       MapLoader (tile layers carry the emission
+│   │                  ShaderMaterial) + Player + Camera
+│   └── Foreground / ScreenForeground
+├── Fx        (scripts/world_fx.gd) -- fog, grading, quantization
 └── DialogueBox        CanvasLayer -- outside the modulated canvas on purpose
 ```
 
 UI lives on `CanvasLayer`s (dialogue, title, the Router's fade), so the
 ambient `CanvasModulate` darkens the world and the actors in it, never the
-interface.
+interface. Screen effects sit on their own layer between the two; see
+[`fx.md`](fx.md) and the layer budget in `data/rendering.json`.
+
+Lighting applies to **every** world plane, not just the playable one: a
+`CanvasModulate` covers the canvas, so a background ridge and a foreground
+branch darken with the world they belong to.
 
 ## Map environments
 
@@ -113,7 +121,7 @@ The `"lighting"` block on a tile in `tiles.json`:
 "lamp": {
   "atlas": [5, 3], "solid": true,
   "lighting": {
-    "emit": { "color": "ffd27a", "energy": 0.9, "radius": 40, "offset": [0, -22] },
+    "emit": { "color": "ffd27a", "energy": 0.9, "radius": 80, "offset": [0, -44] },
     "emission": true
   }
 }
@@ -122,11 +130,18 @@ The `"lighting"` block on a tile in `tiles.json`:
 **`emit`** — every map cell using the tile gets a `PointLight2D`, spawned by
 `WorldLighting._spawn_tile_lights()` and destroyed on map change. Fields (all
 optional): `color` (html, default white), `energy` (default 1.0), `radius` in
-screen pixels (default 32), `offset` in screen pixels from the centre of the
-tile's ground diamond — negative y is up, a lamp head is high (default
-`[0, 0]`), `height` for normal-mapped shading (default 12; never zero, or
-normal-mapped art receives nothing), `shadows` (default false — shadows are
-the expensive part, see the performance rules).
+screen pixels (default one tile width), `offset` in screen pixels from the
+centre of the tile's ground diamond — negative y is up, a lamp head is high
+(default `[0, 0]`), `height` for normal-mapped shading (three quarters of a
+tile height by default; never zero, or normal-mapped art receives nothing),
+`shadows` (default false — shadows are the expensive part, see the performance
+rules).
+
+Radii, offsets and heights are **production screen pixels**, so they scale with
+the world: the defaults are derived from the tile geometry
+(`TileRegistry.default_radius()`, `default_height()`) rather than written down,
+and the authored values in `tiles.json` were doubled with everything else in
+the 64×32 migration.
 
 **`occluder`** — the tile blocks light. `true` bakes its footprint diamond;
 `{"shape": "diamond", "scale": 0.5}` shrinks it (a trunk); `{"points": [...]}`
@@ -180,15 +195,32 @@ assets/tiles/terrain_emission.png   optional; bound to the layer shader
 `tools/build_tileset.gd` checks for `terrain_normal.png`; when it exists the
 tileset's texture becomes a `CanvasTexture` (diffuse + normal) and every 2D
 light starts shading tiles by their normals — no other code changes. When it
-does not exist, nothing changes. No normal atlas ships yet; the wiring is
-live, dormant, and tested for absence. Before shipping one: every cell needs
-a valid neutral (`8080ff`) where it has no authored normal, and every light
-already sets `height > 0` so flat normals still receive light.
+does not exist, nothing changes.
 
-The same convention holds for actor sheets (`actors_normal.png` etc.) and
-pack sheets (`sheet_normal.png`, `sheet_emission.png`) when someone builds
-that wiring; name siblings with `_normal` / `_emission` suffixes, always
-layout-identical to their diffuse.
+**The producer side is now built too.** `tools/gen_art.py::build_normals()`
+composes `terrain_normal.png` from any pack that ships a `sheet_normal.png`,
+filling every other cell with neutral flat (`8080ff`) so no cell is ever
+un-lit — the half-authored atlas the rule above forbids is not expressible.
+When no source has normals it *removes* the file rather than writing a blank
+one, so "does terrain_normal.png exist" keeps meaning "does anybody have
+normals". No pack ships them yet, so nothing is generated and the wiring stays
+dormant and tested for absence.
+
+The same `_normal` / `_emission` convention holds everywhere, always
+layout-identical to the diffuse it accompanies:
+
+| source | diffuse | siblings |
+| --- | --- | --- |
+| tile atlas | `assets/tiles/terrain.png` | `terrain_normal.png`, `terrain_emission.png` |
+| art pack | `assets/packs/<n>/sheet.png` | `sheet_normal.png`, `sheet_emission.png` |
+| actor sheet | the manifest's `texture` | the manifest's `normal` / `emission` |
+| scenery prop | the registry's `texture` | the registry's `normal` / `emission` |
+
+Packs slice their siblings through exactly the same anchor arithmetic as their
+diffuse, so a normal map cannot drift a pixel away from the art it shades. An
+imported tile flagged `"emission": true` takes its glowing pixels from
+`sheet_emission.png`, and the build fails with a clear message if the pack
+does not have one.
 
 ## Pixel-art integrity
 
@@ -201,12 +233,14 @@ Lighting must not read as smooth vector gradients over crisp pixels:
   option *and* the correct look.
 - Emission replaces pixels with their authored colours; nothing blooms.
 
-The remaining smoothness (light gradients render at window resolution, not at
-the 320×192 internal grid) is the known gap. The fix, when wanted, is a
-whole-screen quantization pass: a `ColorRect` with a palette/step shader under
-`WorldLighting.fx_root()` — that hook exists for exactly this, and no
-architecture changes are needed to add it. Do not "fix" it by baking light
-into diffuse art.
+The remaining smoothness — light gradients render at window resolution, not at
+the 640×360 internal grid — used to be the known gap. **It now has a switch.**
+`quantize` in `data/fx/effects.json` steps the finished frame to N levels per
+channel, and `data/fx/pixel_quantize.json` is a preset a map can name. No map
+turns it on, because that is an art-direction decision rather than an
+architectural one. See [`fx.md`](fx.md).
+
+Do not "fix" it by baking light into diffuse art.
 
 ## Ownership
 
@@ -221,18 +255,25 @@ into diffuse art.
 | Emission shader | `assets/shaders/tile_emission.gdshader` |
 | Tileset bake (occluders, normal wiring) | `tools/build_tileset.gd` |
 | Generated light/emission pixels | `tools/gen_art.py` |
-| Camera behaviour | `scripts/game_camera.gd` |
+| Camera behaviour | `scripts/camera_config.gd` + `scripts/game_camera.gd` |
+| Screen & atmospheric effects | `scripts/world_fx.gd` + `data/fx/` |
+| Depth planes the lighting covers | `scripts/scene_planes.gd` |
 
 ## Hooks left for the future
 
-- `WorldLighting.fx_root()` — parent for fog, colour grading, the
-  quantization pass.
 - `WorldLighting.add_point_light(spec, pos)` — scripted one-off lights
   (spells, cutscenes) that share tile-light cleanup.
 - `GameCamera.focus_on()` / `release_focus()` — cinematic framing that a
-  lighting beat can coordinate with, without touching the player transform.
+  lighting beat can coordinate with, without touching the player transform,
+  and that returns the camera to the mode it borrowed. See
+  [`camera.md`](camera.md).
 - Time-of-day / weather — a controller that tweens between resolved profiles;
-  `apply_profile(profile, duration)` is already the primitive it needs.
+  `apply_profile(profile, duration)` is already the primitive it needs, and
+  `WorldFx.effect(type)` is the matching handle on the atmosphere side.
+
+The `Fx` node that used to hang off `WorldLighting` is gone: screen effects
+have a real owner now, `scripts/world_fx.gd`, and the dependency runs one way.
+[`fx.md`](fx.md) explains why lighting was the wrong home for them.
 
 ## Tests
 

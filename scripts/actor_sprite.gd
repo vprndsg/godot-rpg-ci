@@ -1,116 +1,140 @@
-## Sprite2D that reads assets/sprites/actors.png through its manifest.
+## Draws one actor: the right clip, the right direction, the right frame.
 ##
-## The sheet is one long column of 16x24 frames: four frames per direction,
-## four directions (down, left, right, up) per actor. Slicing it with
-## `region_rect` avoids hand-authoring a SpriteFrames resource for every new
-## character -- adding an actor means adding it to tools/gen_art.py and naming
-## it here.
+## Everything about *what* to draw comes from `scripts/actor_manifest.gd` --
+## frame size, anchor, authored directions, clip rows, frame counts, frame
+## rates. This node only advances time and slices the sheet, so a character
+## with eight directions and a six-frame trot needs no code that these four
+## legacy townspeople did not already need.
 ##
-## The four direction names are **grid** axes, so on screen they are the four
-## diagonals: "down" is grid +y (down-left), "right" is grid +x (down-right),
-## "up" is grid -y (up-right) and "left" is grid -x (up-left). Down and right
-## therefore face the camera and show a face; up and left show a back.
+## Two rules it will not bend:
+##
+## - **The origin is the feet.** The node's own position is the patch of
+##   ground the actor stands on, whatever the picture is doing above it. That
+##   is what makes y-sorting against the tiles correct, and it is why a
+##   300-pixel character sorts exactly like a 48-pixel one.
+## - **Elevation is drawn, not simulated.** `ground_lift` moves the picture up
+##   the hill; the body underneath never leaves the flat plane. See
+##   MapData.flat_world_position.
 class_name ActorSprite
 extends Sprite2D
 
-const MANIFEST_PATH := "res://assets/sprites/actors.json"
-const WALK_FPS := 7.0
-## Row of a frame the character's feet stand on. The node's own origin is put
-## there, so an actor's position is the patch of ground they occupy and
-## y-sorting compares like with like against the tiles.
-const FOOT_ROW := 22
-## How fast the sprite eases toward its ground_lift, in pixels per second.
-## Crossing onto a raised cell moves the feet up a whole level at once; easing
-## over a few frames turns that pop into a climb.
-const LIFT_SPEED := 60.0
+## How fast the sprite eases toward its ground_lift, in pixels per second per
+## elevation level -- so the climb takes the same time however tall a level
+## is. Crossing onto a raised cell moves the feet up a whole level at once;
+## easing over a few frames turns that pop into a climb.
+const LIFT_LEVELS_PER_SECOND := 3.75
 
-static var _manifest: Dictionary = {}
+## Emitted when a non-looping clip reaches its last frame. A cutscene can
+## await this; ordinary play ignores it.
+signal clip_finished(clip: String)
 
 @export var actor: String = "player":
 	set(value):
 		actor = value
-		_refresh()
+		_resolve()
 
+## One of ActorManifest.DIRECTIONS. Set it to anything; the manifest snaps it
+## to the nearest direction the current clip actually has.
 var facing: String = "down":
 	set(value):
 		if value == facing:
 			return
 		facing = value
-		_refresh()
+		_redraw()
 
-var moving: bool = false
+## The convenience the movement code uses: walking or standing. Anything more
+## specific goes through play().
+var moving: bool = false:
+	set(value):
+		if value == moving:
+			return
+		moving = value
+		if _action.is_empty():
+			_resolve()
 
-## Pixels the drawing is lifted above the actor's own position. The body
-## stays on the flat plane -- position, physics and y-sorting never move --
-## and elevation is applied here, on the way to the screen, exactly as the
-## raised tile layers are shifted up. Terrain elevation sets this today; a
-## jump arc can add to it later without the world model noticing.
+## Pixels the drawing is lifted above the actor's own position. The body stays
+## on the flat plane -- position, physics and y-sorting never move -- and
+## elevation is applied here, on the way to the screen, exactly as the raised
+## tile layers are shifted up. Terrain elevation sets this today; a jump arc
+## can add to it later without the world model noticing.
 var ground_lift := 0.0
 
+var _manifest: ActorManifest = null
+## A clip explicitly requested with play(), which overrides walk/idle until
+## it is cleared or a non-looping one ends.
+var _action := ""
+var _resolved: Dictionary = {}
 var _time := 0.0
 var _frame := 0
 
 
-static func manifest() -> Dictionary:
-	if _manifest.is_empty():
-		var f := FileAccess.open(MANIFEST_PATH, FileAccess.READ)
-		if f == null:
-			push_error("Missing %s -- run tools/gen_art.py" % MANIFEST_PATH)
-			return {}
-		var parsed: Variant = JSON.parse_string(f.get_as_text())
-		f.close()
-		if parsed is Dictionary:
-			_manifest = parsed
-	return _manifest
+# --------------------------------------------------------------------------
+# static access, for callers that have no node yet (validators, tests, tools)
+# --------------------------------------------------------------------------
+
+static func manifest() -> ActorManifest:
+	return ActorManifest.load_default()
 
 
 static func has_actor(actor_name: String) -> bool:
-	return manifest().get("actors", {}).has(actor_name)
+	return manifest().has_actor(actor_name)
 
 
 static func actor_names() -> Array:
-	var out: Array = manifest().get("actors", {}).keys()
-	out.sort()
-	return out
+	return manifest().actor_names()
 
 
-static func frame_size() -> Vector2i:
-	var fs: Array = manifest().get("frame_size", [16, 24])
-	return Vector2i(int(fs[0]), int(fs[1]))
+static func frame_size(actor_name: String) -> Vector2i:
+	return manifest().frame_size(actor_name)
 
 
-## Which of the four directions a grid-space step faces.
-##
-## Takes a step in tiles, not pixels: on screen the axes are diagonals, and
-## comparing screen x against screen y would pick the wrong one every time.
-static func facing_for(step: Vector2) -> String:
-	if absf(step.x) > absf(step.y):
-		return "right" if step.x > 0.0 else "left"
-	return "down" if step.y > 0.0 else "up"
+## Which direction a grid-space step faces, out of the eight. Callers that
+## know an actor pass its authored set so the answer is one it can draw.
+static func facing_for(step: Vector2, available: PackedStringArray = ActorManifest.DIRECTIONS) -> String:
+	return ActorManifest.facing_for(step, available)
 
 
 func _ready() -> void:
 	region_enabled = true
 	centered = true
-	# Origin sits at the actor's feet, so y-sorting against the object layer
-	# orders characters by where they stand, not by where their hat is.
-	offset = Vector2(0, frame_size().y / 2.0 - FOOT_ROW)
-	_refresh()
+	_resolve()
 
 
 func _process(delta: float) -> void:
-	position.y = move_toward(position.y, -ground_lift, LIFT_SPEED * delta)
-	if not moving:
-		if _frame != 0:
-			_frame = 0
-			_time = 0.0
-			_refresh()
+	var lift_speed := LIFT_LEVELS_PER_SECOND * Iso.elevation_height()
+	position.y = move_toward(position.y, -ground_lift, lift_speed * delta)
+	_advance(delta)
+
+
+## The directions this actor's sheet actually has. Movement code asks so it
+## never sets a facing the character cannot draw.
+func available_directions() -> PackedStringArray:
+	return _manifest.directions(actor) if _manifest != null else ActorManifest.DIRECTIONS
+
+
+## The clip currently on screen -- what got resolved, not what was asked for.
+func current_clip() -> String:
+	return String(_resolved.get("clip", ""))
+
+
+## Play a named clip (`run`, `sniff`, `sit`, anything the manifest declares).
+## An actor without it falls back rather than freezing; a non-looping clip
+## clears itself when it ends.
+func play(clip: String) -> void:
+	_action = clip
+	_time = 0.0
+	_frame = 0
+	_resolve()
+
+
+## Back to the ordinary walk/idle pair.
+func stop_action() -> void:
+	if _action.is_empty():
 		return
-	_time += delta
-	var next := int(_time * WALK_FPS) % 4
-	if next != _frame:
-		_frame = next
-		_refresh()
+	_action = ""
+	_time = 0.0
+	_frame = 0
+	_resolve()
 
 
 ## Jump straight to the current lift with no easing -- for spawns and map
@@ -119,18 +143,79 @@ func snap_lift() -> void:
 	position.y = -ground_lift
 
 
-func _refresh() -> void:
-	if not is_inside_tree():
-		return
-	var m := manifest()
-	var actors: Dictionary = m.get("actors", {})
-	if not actors.has(actor):
+func _wanted_clip() -> String:
+	if not _action.is_empty():
+		return _action
+	return "walk" if moving else "idle"
+
+
+## Re-read the manifest for the current actor and clip. Called whenever any of
+## the three inputs (actor, clip, moving) changes -- never per frame.
+func _resolve() -> void:
+	if _manifest == null:
+		_manifest = ActorManifest.load_default()
+	if not _manifest.has_actor(actor):
 		push_warning("Unknown actor sprite '%s'; falling back to 'player'" % actor)
-		actor = "player" if actors.has("player") else actor
-		if not actors.has(actor):
+		if not _manifest.has_actor("player"):
+			_resolved = {}
 			return
-	var block := int(actors[actor].get("row_block", 0))
-	var dirs: Array = m.get("directions", ["down", "left", "right", "up"])
-	var dir_index := maxi(0, dirs.find(facing))
-	var fs := frame_size()
-	region_rect = Rect2(_frame * fs.x, (block * dirs.size() + dir_index) * fs.y, fs.x, fs.y)
+		actor = "player"
+		return
+	var next := _manifest.resolve_clip(actor, _wanted_clip())
+	if next.get("clip", "") != _resolved.get("clip", "") or next.get("texture", "") != _resolved.get("texture", ""):
+		_time = 0.0
+		_frame = 0
+	_resolved = next
+	_apply_sheet()
+	_redraw()
+
+
+## Bind the sheet and put the node's origin on the actor's feet. Both come
+## from the manifest, so two characters on one texture may still have
+## different frame sizes and different foot points.
+func _apply_sheet() -> void:
+	if _resolved.is_empty():
+		return
+	var path := String(_resolved["texture"])
+	if not path.is_empty() and ResourceLoader.exists(path):
+		var wanted: Texture2D = load(path)
+		if texture != wanted:
+			texture = wanted
+	var size: Vector2i = _resolved["frame_size"]
+	var foot: Vector2i = _resolved["anchor"]
+	offset = Vector2(size.x / 2.0 - foot.x, size.y / 2.0 - foot.y)
+
+
+func _advance(delta: float) -> void:
+	if _resolved.is_empty():
+		return
+	var frames := int(_resolved["frames"])
+	var fps := float(_resolved["fps"])
+	if frames <= 1 or fps <= 0.0:
+		if _frame != 0:
+			_frame = 0
+			_redraw()
+		return
+	_time += delta
+	var step := int(_time * fps)
+	if bool(_resolved["loop"]):
+		step %= frames
+	elif step >= frames:
+		# A one-shot holds its last frame, then hands control back.
+		if _frame != frames - 1:
+			_frame = frames - 1
+			_redraw()
+		var finished := String(_resolved["clip"])
+		if not _action.is_empty():
+			stop_action()
+		clip_finished.emit(finished)
+		return
+	if step != _frame:
+		_frame = step
+		_redraw()
+
+
+func _redraw() -> void:
+	if _resolved.is_empty() or texture == null:
+		return
+	region_rect = ActorManifest.frame_region(_resolved, facing, _frame)

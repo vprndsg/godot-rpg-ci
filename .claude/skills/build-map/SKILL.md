@@ -43,10 +43,34 @@ whether a room works without ever opening an editor.
 - `spawns` names arrival points. Portals in other maps refer to them by name.
 - `portals` fire when the player steps on the tile. Set `"interact": true` to
   require a key press instead, and give it a `prompt`.
-- `facing` is one of `down`, `left`, `right`, `up`. These name **grid**
-  directions: `down` is +y, `right` is +x. On screen they come out as the four
-  diagonals, and `down`/`right` are the two that face the camera — so an NPC
-  meant to be looking at the player wants one of those.
+- `facing` is one of the eight grid directions: `down`, `down_left`, `left`,
+  `up_left`, `up`, `up_right`, `right`, `down_right`. `down` is +y, `right` is
+  +x. On screen the four axes come out as the diagonals, and `down`/`right`
+  are the two that face the camera — so an NPC meant to be looking at the
+  player wants one of those. A character whose sheet only authored four
+  directions snaps to the nearest one it has, which is what every shipped NPC
+  does today; see `docs/architecture/animation.md`.
+
+- Three optional blocks say how the map is *presented*, and every one of them
+  defaults to exactly what maps did before they existed:
+
+  | block | says | doc |
+  | --- | --- | --- |
+  | `"camera"` | follow / room-locked / fixed framing | `docs/architecture/camera.md` |
+  | `"fx"` | fog, colour grading, pixel quantization | `docs/architecture/fx.md` |
+  | `"scenery"` | props in the background and foreground planes | `docs/architecture/scenery.md` |
+
+  ```json
+  "camera": { "mode": "room_locked", "room": [2, 1, 12, 9] },
+  "fx": { "preset": "pixel_quantize" },
+  "scenery": [ { "prop": "ridge_far", "at": [0, 0],
+                 "plane": "far_background", "parallax": 0.35 } ]
+  ```
+
+  All three are validated with the rest of the map, so a bad framing or an
+  unknown prop fails CI rather than a frame. **Scenery is never collision**: a
+  prop that visibly blocks the way needs a solid tile under it in `objects`,
+  and the validator checks that it has one.
 
 Tile names come from `assets/tiles/tiles.json` — read it first, and use
 `"solid": true` there to know what blocks movement. Do not invent tile names;

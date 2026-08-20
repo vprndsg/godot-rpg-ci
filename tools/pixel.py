@@ -150,23 +150,94 @@ class Canvas:
 # isometric geometry -- the Python half of scripts/iso.gd
 # --------------------------------------------------------------------------
 
-_GEOMETRY = {}
+_CACHE = {}
+
+
+def registry():
+    """assets/tiles/tiles.json, parsed once. The source of truth for geometry."""
+    if "registry" not in _CACHE:
+        import json
+        _CACHE["registry"] = json.load(open(os.path.join(ROOT, "assets/tiles/tiles.json")))
+    return _CACHE["registry"]
+
+
+def rendering():
+    """data/rendering.json, parsed once -- the presentation half of the contract.
+
+    Mirrors scripts/presentation.gd. Renderers that want to show what a frame
+    of the game would hold (a viewport-sized crop, a screen-space overlay) ask
+    here rather than typing 640 into a script.
+    """
+    if "rendering" not in _CACHE:
+        import json
+        _CACHE["rendering"] = json.load(open(os.path.join(ROOT, "data/rendering.json")))
+    return _CACHE["rendering"]
+
+
+def viewport():
+    """(width, height) of the internal viewport the game draws into."""
+    w, h = rendering()["viewport"]
+    return (int(w), int(h))
 
 
 def geometry():
-    """(tile_w, tile_h, cell_w, cell_h) read from assets/tiles/tiles.json.
+    """(tile_w, tile_h, cell_w, cell_h) at PRODUCTION scale, from tiles.json.
 
     Read rather than hardcoded, because the registry is the source of truth
     for the grid's shape and three separate renderers have to agree with the
     engine about it.
     """
-    if not _GEOMETRY:
-        import json
-        reg = json.load(open(os.path.join(ROOT, "assets/tiles/tiles.json")))
+    if "geometry" not in _CACHE:
+        reg = registry()
         tw, th = reg["tile_size"]
         cw, ch = reg["cell_size"]
-        _GEOMETRY["v"] = (int(tw), int(th), int(cw), int(ch))
-    return _GEOMETRY["v"]
+        _CACHE["geometry"] = (int(tw), int(th), int(cw), int(ch))
+    return _CACHE["geometry"]
+
+
+def legacy_geometry():
+    """(tile_w, tile_h, cell_w, cell_h) the shipped painters were composed at.
+
+    Port Azure's art predates the move to a 64x32 diamond and has not been
+    redrawn. tools/gen_art.py still paints at this geometry and upscales its
+    output by art_scale() on the way into the production atlas -- a migration
+    path, not a look. New art is authored at geometry() and never comes near
+    this function.
+    """
+    if "legacy" not in _CACHE:
+        legacy = registry().get("legacy_art", {})
+        tw, th = legacy.get("tile_size", registry()["tile_size"])
+        cw, ch = legacy.get("cell_size", registry()["cell_size"])
+        _CACHE["legacy"] = (int(tw), int(th), int(cw), int(ch))
+    return _CACHE["legacy"]
+
+
+def legacy_actor_frame():
+    """(frame_w, frame_h, foot_row) the legacy actor sheet is drawn at."""
+    legacy = registry().get("legacy_art", {})
+    fw, fh = legacy.get("actor_frame", [16, 24])
+    return (int(fw), int(fh), int(legacy.get("actor_foot_row", 22)))
+
+
+def art_scale():
+    """Whole-number factor from legacy authoring geometry to production.
+
+    Integer by construction: a non-integer factor would resample pixel art,
+    which is the one thing this project will not do. Every dimension has to
+    agree on the factor, or the footprint would stop being centred in its
+    cell and every tile would drift off the grid by a sub-pixel amount.
+    """
+    if "art_scale" not in _CACHE:
+        prod = geometry()
+        legacy = legacy_geometry()
+        factors = {p // l for p, l in zip(prod, legacy)}
+        if len(factors) != 1 or any(p % l for p, l in zip(prod, legacy)):
+            raise SystemExit(
+                "tiles.json: production geometry %s is not a whole multiple of legacy_art %s. "
+                "Either redraw the painters at the new geometry, or pick a size that is an "
+                "integer multiple of the old one." % (prod, legacy))
+        _CACHE["art_scale"] = factors.pop()
+    return _CACHE["art_scale"]
 
 
 def footprint_top():

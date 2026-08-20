@@ -1,0 +1,6 @@
+{
+  "_comment": "The pixel-integrity pass, as a preset rather than a hardcoded behaviour: step the finished frame so 2D light gradients stop reading as smooth vector washes over crisp art. docs/architecture/lighting.md has described this as the known gap since the lighting system shipped. No map uses it yet -- turning it on is an art-direction decision, and this is the switch.",
+  "effects": [
+    { "type": "quantize", "levels": 16.0 }
+  ]
+}

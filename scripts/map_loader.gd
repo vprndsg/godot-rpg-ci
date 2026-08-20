@@ -141,8 +141,8 @@ func clear() -> void:
 func _make_elevation_layers(top_level: int) -> void:
 	if top_level <= 0:
 		return
-	var lift := int(Iso.ELEVATION_HEIGHT)
-	var half := int(Iso.ELEVATION_HEIGHT / 2.0)
+	var lift := int(Iso.elevation_height())
+	var half := int(Iso.elevation_height() / 2.0)
 	for level: int in top_level + 1:
 		var terrain := _make_layer("Terrain%d" % level, true)
 		terrain.collision_enabled = false
@@ -240,7 +240,7 @@ func _spawn_entities(map: MapData) -> void:
 		sign_node.collision_mask = 0
 		sign_node.position = map.flat_world_position(entry.get("at", Vector2i.ZERO))
 		var shape := CollisionShape2D.new()
-		shape.shape = _footprint_shape()
+		shape.shape = Iso.diamond_shape()
 		sign_node.add_child(shape)
 		sign_node.configure(String(entry.get("text", "")))
 		sorted.add_child(sign_node)
@@ -254,7 +254,7 @@ func _spawn_entities(map: MapData) -> void:
 		portal.position = map.flat_world_position(entry.get("at", Vector2i.ZERO))
 		var shape := CollisionShape2D.new()
 		# Slightly inset so you have to actually step onto the tile.
-		shape.shape = _footprint_shape(0.78)
+		shape.shape = Iso.diamond_shape(0.78)
 		portal.add_child(shape)
 		portal.configure(
 			String(entry.get("to", "")),
@@ -263,14 +263,6 @@ func _spawn_entities(map: MapData) -> void:
 			bool(entry.get("interact", false))
 		)
 		sorted.add_child(portal)
-
-
-## One cell's worth of ground, as a shape. Signs and portals occupy a tile, and
-## a tile is a diamond -- a square here would poke into the four neighbours.
-func _footprint_shape(shrink: float = 1.0) -> ConvexPolygonShape2D:
-	var shape := ConvexPolygonShape2D.new()
-	shape.points = Iso.diamond(shrink)
-	return shape
 
 
 ## Where the player's body should stand when arriving at this map -- on the

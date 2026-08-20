@@ -1,33 +1,61 @@
-# Rendering & lighting — agent guide
+# Rendering, scenery & lighting — agent guide
 
-You are adding a map, a prop, a building, an art pack, or a light to Port
-Azure. This file tells you where everything goes and what will fail CI if you
-put it somewhere else. The implementation reference with schemas and diagrams
-is [`lighting.md`](lighting.md); the repo-wide guide is the root `AGENTS.md`.
+You are adding a map, a prop, a building, a character, an art pack, a light,
+a camera framing or an atmospheric effect to Port Azure. This file tells you
+where everything goes and what will fail CI if you put it somewhere else.
 
-Everything here is done by editing text files and running `tools/ci.sh`.
-There is no editor, and nothing below needs one.
+The design references, each owning one subsystem:
 
-## The two rules everything else hangs off
+| doc | owns |
+| --- | --- |
+| [`rendering.md`](rendering.md) | the geometry and presentation contract — **read this first** |
+| [`scenery.md`](scenery.md) | depth planes, anchors, the four footprints |
+| [`animation.md`](animation.md) | the actor manifest: directions, clips, frame rates |
+| [`camera.md`](camera.md) | FOLLOW / ROOM_LOCKED / FIXED / CINEMATIC |
+| [`fx.md`](fx.md) | fog, grading, quantization and who owns them |
+| [`lighting.md`](lighting.md) | ambient, sun, emitters, occluders, emission |
+
+The repo-wide guide is the root `AGENTS.md`. Everything here is done by
+editing text files and running `tools/ci.sh`. There is no editor, and nothing
+below needs one.
+
+## The rules everything else hangs off
 
 **Isometric is a projection, not a data format.** The game is 2D. A cell is
 `[x, y]` in a square ASCII grid; it becomes a screen position only through
 `scripts/iso.gd` (`Iso.cell_centre()`, `MapData.world_position()`), and
 `tools/pixel.py` holds the same arithmetic for the Python renderers. Never
 introduce 3D nodes to get perspective or lighting, never open-code
-`cell * 16`, and never bend `Iso` to fake a camera angle — `tests/test_iso.gd`
+`cell * 32`, and never bend `Iso` to fake a camera angle — `tests/test_iso.gd`
 pins it against a real `TileMapLayer` and will catch you.
 
-**Lighting is metadata, not code.** A lamp glows because
-`assets/tiles/tiles.json` says it emits; a wall blocks light because its
-metadata says it occludes; a room is dim because its map JSON names a profile.
-The runtime (`scripts/world_lighting.gd`, `scripts/map_loader.gd`,
-`tools/build_tileset.gd`) turns metadata into `PointLight2D`s, occluder
-polygons and shader inputs. If you are typing a tile name into an `if` to get
-a lighting behaviour, stop: add metadata instead.
+**The geometry has one source of truth.** `assets/tiles/tiles.json` says a
+ground diamond is 64x32 in a 64x128 cell; `data/rendering.json` says the frame
+is 640x360. Every other dimension in the project — collision shapes, camera
+limits, elevation lift, light radii, the renderers' output — is derived from
+those. A `64` typed into a script is a bug waiting for the day the contract
+moves.
+
+**Simulation is a grid; presentation is everything else.** The world model
+knows cells, walkability, height, collision, actors, portals, interaction.
+Presentation knows 400-pixel trees, parallax, fog, normal maps, fixed cameras
+and eight-direction sheets. A giant redwood occupies **one** logical cell and
+one collision footprint however much of the screen its picture covers. Never
+let a presentation problem grow a second definition of "solid".
+
+**Behaviour is metadata, not code.** A lamp glows because `tiles.json` says it
+emits; a room is dim because its map names a lighting profile; a scene is
+framed because its map names a camera mode; fog drifts because its map names
+an effect. If you are typing an asset name into an `if` to get a behaviour,
+stop: add metadata instead.
 
 ## Checklist: a new room / map
 
+0. **Decide how it is framed.** Nothing → FOLLOW, exactly as before. A
+   composed interior → `"camera": {"mode": "room_locked", "room": [x, y, w, h]}`.
+   A fixed cinematic shot → `{"mode": "fixed", "at": [x, y]}`.
+   [`camera.md`](camera.md) has the rest; the validator checks the room is on
+   the map and that a fixed camera has somewhere to sit.
 1. **Choose or define a lighting profile.** Look in `data/lighting/` first:
    `outdoor_day`, `outdoor_evening`, `moonlit`, `warm_interior`,
    `dark_interior`. A map that says nothing gets `default` — full-bright,
@@ -57,6 +85,51 @@ a lighting behaviour, stop: add metadata instead.
    (`test_doors_move_the_player_to_the_other_side` does this in CI); lighting
    glides between environments on entry and old lights must be gone — if you
    added mechanics around this, add the test that would fail without them.
+8. **Atmosphere, if the room wants it.** `"fx": {"preset": "..."}` or a list
+   of effects. Nothing means nothing, which is what every shipped map has.
+   [`fx.md`](fx.md); mind the two-backbuffer budget.
+9. **Scenery, if the room is composed rather than tiled.** A `"scenery"`
+   array places props from `assets/scenery/scenery.json` into the background
+   and foreground planes. [`scenery.md`](scenery.md) — and remember that
+   anything which blocks the way needs a solid tile under it, not a bigger
+   picture.
+
+## Checklist: a new character
+
+1. **Get the sheet in.** A pack directory for imported art, so the licence
+   travels with the pixels. Frames run horizontally; each direction is a row.
+2. **Describe it in `assets/sprites/actors.json`**: a `sheets` entry (texture,
+   frame size, anchor) and an `actors` entry (sheet, directions authored,
+   clips with their own frame counts and frame rates).
+   [`animation.md`](animation.md) is the schema.
+3. **The anchor is the pixel that touches the ground.** Sorting is by ground
+   contact, so this — not the middle of the image — is what the node's origin
+   is placed at. A 300px character sorts exactly like a 48px one.
+4. **Author what you have.** Four directions is legal; eight is legal; a clip
+   authored for two directions is legal. Missing falls back. *Malformed* fails
+   validation, loudly, and that difference is the point.
+5. `tools/ci.sh generate` then `tools/ci.sh test`, then look at
+   `docs/art/actors.png` — the contact sheet reads the manifest, so it lays
+   itself out around whatever you declared.
+
+Note that `assets/sprites/actors.json` is **generated** for the legacy cast.
+A character that is not drawn by `tools/gen_art.py` needs the generator to
+emit its entry, or its own manifest file merged in — do not hand-edit the
+generated one.
+
+## Checklist: a new scenery prop
+
+1. **Art in** (painter, pack, PixelOver render — all sources, all
+   reproducible).
+2. **Entry in `assets/scenery/scenery.json`**: texture and `anchor`, at
+   minimum.
+3. **Decide the footprints separately.** Visual is the image and nobody's
+   business. Logical is `footprint`, usually one cell. Collision is the map's
+   solid tiles — set `requires_solid` and the validator will prove the map
+   agrees. Occlusion is `occluder`, no bigger than the logical footprint.
+4. **Place it** in a map's `"scenery"` array: a plane, a space, optionally a
+   parallax.
+5. `tools/ci.sh test`, then `tools/ci.sh shots` and look at the frame.
 
 ## Checklist: a new prop / building / environment asset
 
@@ -111,12 +184,19 @@ For every texture that feeds the game:
   the padding below it stay transparent unless the art genuinely rises;
   nothing may sink below the diamond (`tools/ci.sh art` enforces this).
 - **Sprite anchors** — a sprite is anchored where it touches the ground: the
-  centre of its diamond. Packs express this with `anchor` in `pack.json`.
+  centre of its diamond for a tile, `anchor` for a pack, an actor or a scenery
+  prop. One idea, four spellings, because the thing being anchored differs.
 - **Collision footprint** — the `solid` flag; always the full diamond today.
+  Scenery never has one: what blocks the way is a tile.
 - **Occlusion footprint** — `lighting.occluder`; at most the diamond, often
   smaller. Deliberately separate from both collision and visual bounds.
 - **Light origin** — `lighting.emit.offset`, screen pixels from the diamond
-  centre to where the light visibly comes from.
+  centre to where the light visibly comes from. Screen pixels are production
+  pixels: they scaled with the world in the 64x32 migration.
+- **Legacy art** — every shipped tile and character is a placeholder drawn at
+  the old 32x16 geometry and magnified by an exact integer factor. It is a
+  migration path, not a look. New art is authored at 64x32.
+  [`rendering.md`](rendering.md) has the details and the retirement plan.
 
 ## Performance rules (web + small GPUs)
 
@@ -128,26 +208,37 @@ The game ships to GitHub Pages under GL Compatibility. Budget accordingly:
   statement; five is a slideshow. Occluder polygons are free until a shadowed
   light overlaps them.
 - Keep the default light texture and radii modest (a radius is screen pixels
-  on a 320×192 viewport — 40 is already a quarter of the screen tall).
+  on a 640×360 viewport — 80 is already a quarter of the screen tall).
 - Reuse metadata: a second lamp costs a map character, not new schema, new
   textures or new code.
-- No per-frame material churn, no full-screen effects without measuring on
-  the web export first.
+- No per-frame material churn, and no full-screen effect without measuring on
+  the web export first. Screen-reading effects (`color_grade`, `quantize`)
+  cost a backbuffer copy each; `WorldFx` warns past two. See [`fx.md`](fx.md).
 
 ## Ownership — where a change belongs
 
 | You are changing | Edit |
 | --- | --- |
+| The world's geometry (tile size, cell size) | `assets/tiles/tiles.json` — and nothing else |
+| The frame (viewport, scaling, layer budget) | `data/rendering.json` + the mirror in `project.godot` |
 | The projection itself | `scripts/iso.gd` + `tools/pixel.py` (both, always) |
-| Camera behaviour, cinematic framing | `scripts/game_camera.gd` |
+| Camera modes and framing | `scripts/camera_config.gd` + `scripts/game_camera.gd` |
+| Depth planes, plane ownership | `scripts/scene_planes.gd` |
+| Scenery metadata & its schema | `assets/scenery/scenery.json` + `scripts/scenery_registry.gd` |
+| A scenery prop's runtime behaviour | `scripts/scenery_prop.gd` |
+| Actor sheets, clips, directions | `assets/sprites/actors.json` + `scripts/actor_manifest.gd` |
+| Actor drawing at runtime | `scripts/actor_sprite.gd` |
 | Map parsing / validation | `scripts/map_data.gd` |
 | Map → nodes (layers, entities, materials) | `scripts/map_loader.gd` |
 | Tile metadata & its schema | `assets/tiles/tiles.json` + `scripts/tile_registry.gd` |
 | Environment profiles | `data/lighting/*.json` + `scripts/lighting_profile.gd` |
-| Lighting runtime (ambient, sun, dynamic lights, fx) | `scripts/world_lighting.gd` |
+| Lighting runtime (ambient, sun, dynamic lights) | `scripts/world_lighting.gd` |
+| The effect vocabulary | `data/fx/effects.json` + a shader in `assets/shaders/` |
+| Effect stacks a map can name | `data/fx/<preset>.json` |
+| Effect runtime (build, bind, sweep) | `scripts/world_fx.gd` |
 | Tileset bake (collision, occluders, normal wiring) | `tools/build_tileset.gd` |
-| Generated pixels (tiles, emission, light falloff) | `tools/gen_art.py` |
-| Screen-space effects (fog, grading, quantized light) | a node under `WorldLighting.fx_root()` |
+| Generated pixels (tiles, emission, normals, light falloff, actors) | `tools/gen_art.py` |
+| Importing somebody else's art | `tools/packs.py` + `assets/packs/README.md` |
 
 ## Forbidden shortcuts
 
@@ -159,6 +250,17 @@ Each of these has been cheap once and expensive forever:
   nothing.
 - **Modifying `Iso` to fake camera perspective.** The projection is pinned
   by tests against the engine; the camera is `scripts/game_camera.gd`.
+- **Hardcoding a dimension.** 64, 32, 640, 360, 16 — every one of them is
+  derived. Ask `TileRegistry`, `Iso` or `Presentation`.
+- **Giving scenery collision.** There is one definition of solid and it lives
+  in the map grid. A picture that stops the player is a picture standing on a
+  solid tile.
+- **Making a prop's logical footprint match its picture.** A redwood is one
+  cell. That separation is the whole reason the visual target is affordable.
+- **Assuming a cutscene ends in FOLLOW.** `release_focus()` returns the camera
+  to whatever borrowed it. A FIXED scene must still be FIXED afterwards.
+- **Growing screen effects onto `WorldLighting`.** They have an owner:
+  `scripts/world_fx.gd`.
 - **Converting anything to 3D** for lighting, shadows or perspective. This
   is a 2D canvas with 2D lights, by architectural decision.
 - **Baking dynamic light into diffuse art.** A painted glow cannot be turned

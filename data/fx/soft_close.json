@@ -1,0 +1,6 @@
+{
+  "_comment": "A neutral, cheap composition aid: a gentle vignette and nothing else. Ships as a worked example of the preset format -- a stack a map can name, and override entry by entry -- not as art direction. Neither shipped map uses it.",
+  "effects": [
+    { "type": "vignette", "strength": 0.28, "inner": 0.5 }
+  ]
+}

@@ -15,7 +15,7 @@ var world: World = null
 
 
 func after_each() -> void:
-	TileRegistry.reload()
+	TileRegistry.clear_cache()
 	if main != null:
 		main.queue_free()
 		main = null
@@ -168,7 +168,7 @@ func test_malformed_tile_lighting_is_reported() -> void:
 		TileRegistry._cache = {"tiles": {"broken": cases[label]}}
 		var errors := TileRegistry.validate_lighting()
 		ok(errors.size() > 0, "'%s' should fail tile validation and was accepted" % label)
-	TileRegistry.reload()
+	TileRegistry.clear_cache()
 
 
 # --------------------------------------------------------------------------
@@ -263,7 +263,11 @@ func test_world_has_a_lighting_node() -> void:
 	ok(world.lighting is WorldLighting, "World has no Lighting node")
 	ok(world.lighting.ambient_node is CanvasModulate, "Lighting built no CanvasModulate")
 	ok(world.lighting.sun is DirectionalLight2D, "Lighting built no DirectionalLight2D")
-	ok(world.lighting.fx_root() != null, "Lighting has no fx hook")
+	# Screen effects are NOT lighting's job any more; tests/test_fx.gd owns
+	# that contract. What matters here is that they left.
+	ok(world.fx is WorldFx, "World has no Fx controller")
+	ok(not world.lighting.has_method("fx_root"),
+		"WorldLighting still owns an fx hook -- fog and grading belong to WorldFx")
 
 
 func test_tile_metadata_becomes_point_lights() -> void:
@@ -337,12 +341,14 @@ func test_tile_layers_carry_the_emission_material() -> void:
 	equal(world.loader.ground_layer.material, material, "both tile layers must share one emission material")
 
 
-## The pixel-art contract this whole feature must not break.
+## The pixel-art contract this whole feature must not break. The numbers
+## themselves moved to data/rendering.json in the 64x32 migration, and
+## tests/test_rendering.gd pins them against project.godot -- so this asserts
+## the contract holds rather than restating it in a second place.
 func test_web_and_pixel_configuration_is_preserved() -> void:
 	equal(String(ProjectSettings.get_setting("rendering/renderer/rendering_method", "")), "gl_compatibility",
 		"the renderer changed; web export and low-end targets depend on gl_compatibility")
-	equal(int(ProjectSettings.get_setting("display/window/size/viewport_width", 0)), 320, "internal viewport width changed")
-	equal(int(ProjectSettings.get_setting("display/window/size/viewport_height", 0)), 192, "internal viewport height changed")
-	equal(String(ProjectSettings.get_setting("display/window/stretch/mode", "")), "canvas_items", "stretch mode changed")
-	equal(int(ProjectSettings.get_setting("rendering/textures/canvas_textures/default_texture_filter", -1)), 0,
+	expect_no_errors(Presentation.validate(),
+		"data/rendering.json and project.godot disagree about how the game is presented")
+	equal(Presentation.texture_filter(), 0,
 		"nearest-neighbour filtering changed; pixel art would smear")

@@ -17,6 +17,13 @@ extends CharacterBody2D
 const SPEED := 4.25
 ## How far ahead of the player the interactor sits, in tiles.
 const REACH := 0.72
+## Collision and reach footprints, as fractions of the ground diamond. Shapes
+## are built from Iso.diamond() at _ready rather than saved in the scene: a
+## polygon in a .tscn is a set of pixel coordinates that would silently keep
+## the old scale the day the geometry moves, and this body is a body on the
+## grid, not a body of a size somebody typed once.
+const BODY_SPAN := 0.375
+const REACH_SPAN := 0.875
 
 signal interacted(target: Node)
 
@@ -34,6 +41,11 @@ var map: MapData = null:
 		_snap_lift = true
 
 var _snap_lift := true
+
+
+func _ready() -> void:
+	$CollisionShape2D.shape = Iso.diamond_shape(BODY_SPAN)
+	$Interactor/CollisionShape2D.shape = Iso.diamond_shape(REACH_SPAN)
 
 
 func _physics_process(delta: float) -> void:
@@ -60,7 +72,10 @@ func _physics_process(delta: float) -> void:
 	_update_lift()
 	sprite.moving = step != Vector2.ZERO
 	if step != Vector2.ZERO:
-		sprite.facing = ActorSprite.facing_for(step)
+		# Asked of the sprite, not of the world: a character that authored all
+		# eight directions turns to all eight, and one that authored four
+		# snaps to the nearest of its four. The movement itself is unchanged.
+		sprite.facing = ActorSprite.facing_for(step, sprite.available_directions())
 	interactor.position = Iso.grid_vector(_facing_step()) * REACH
 
 
@@ -80,7 +95,7 @@ func place_on(cell: Vector2i) -> void:
 func _update_lift() -> void:
 	if map == null:
 		return
-	sprite.ground_lift = map.elevation_at(Iso.cell_at(global_position)) * Iso.ELEVATION_HEIGHT
+	sprite.ground_lift = map.elevation_at(Iso.cell_at(global_position)) * Iso.elevation_height()
 	if _snap_lift:
 		sprite.snap_lift()
 		_snap_lift = false
@@ -131,11 +146,8 @@ func face(direction: String) -> void:
 	interactor.position = Iso.grid_vector(_facing_step()) * REACH
 
 
-## The grid step the player is facing -- one cell north, south, east or west.
-## Project it to get anywhere on screen.
+## The unit grid step the player is facing -- one of the eight. Project it to
+## get anywhere on screen. Unit rather than a whole cell, so the interactor
+## sits the same distance ahead diagonally as it does along an axis.
 func _facing_step() -> Vector2:
-	match sprite.facing:
-		"left": return Vector2.LEFT
-		"right": return Vector2.RIGHT
-		"up": return Vector2.UP
-		_: return Vector2.DOWN
+	return ActorManifest.direction_vector(sprite.facing)

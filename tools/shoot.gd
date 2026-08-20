@@ -21,8 +21,17 @@ extends SceneTree
 const OUT_DIR := "res://docs/shots"
 
 ## Where to stand and what it is meant to show. Add a row whenever you add a
-## lighting behaviour that a still frame can prove.
+## behaviour that a still frame can prove.
+##
+## Optional keys: "facing" turns the player before the grab, "dialogue" opens a
+## conversation so the frame includes the UI, and "also" writes a second copy
+## somewhere outside docs/shots/ -- which is how the README's front image stays
+## the game as it currently looks rather than as it looked once.
 const SHOTS: Array[Dictionary] = [
+	{"name": "harbourmaster", "map": "port_azure_town", "at": Vector2i(21, 11),
+	 "facing": "right", "dialogue": "harbormaster", "also": "res://docs/screenshot.png",
+	 "shows": "the README's front image: the world plus the dialogue UI at the "
+		+ "production 640x360 frame"},
 	{"name": "town", "map": "port_azure_town", "at": Vector2i(14, 13),
 	 "shows": "outdoor profile; lamp emitters down the high street"},
 	{"name": "town_lamp", "map": "port_azure_town", "at": Vector2i(14, 17),
@@ -57,11 +66,16 @@ func _run() -> void:
 	root.add_child(main)
 	await process_frame
 	var world: Node = main.start_game()
+	# Fetched from the tree, not referenced by name: a --script SceneTree is
+	# compiled before the autoloads exist, so `Dialogue` is not an identifier
+	# here. Same trap the `World` comment above describes.
+	var dialogue: Node = root.get_node("Dialogue")
 	# Lighting glides between environments; a still wants the destination.
 	world.lighting.transition_seconds = 0.0
 	await process_frame
 
 	for shot: Dictionary in SHOTS:
+		dialogue.stop()
 		world.enter(String(shot["map"]))
 		await process_frame
 		# place_on, not a raw position: a body lives on the flat plane at any
@@ -71,15 +85,25 @@ func _run() -> void:
 		# The camera eases after the player by design; snap it for the frame.
 		world.camera.position_smoothing_enabled = false
 		await process_frame
+		if shot.has("facing"):
+			world.player.face(String(shot["facing"]))
+		if shot.has("dialogue"):
+			# A frame that includes the UI, to prove the interface still sits
+			# above the world and outside its ambient darkening.
+			dialogue.start(String(shot["dialogue"]))
 		world.camera.reset_smoothing()
 		world.camera.force_update_scroll()
-		# Let the tile layers, lights and occluders settle before grabbing.
-		for i: int in 4:
+		# Let the tile layers, lights and occluders settle before grabbing --
+		# and a dialogue line finish typing, since a half-revealed line reads
+		# as a bug rather than as a typewriter.
+		for i: int in (60 if shot.has("dialogue") else 4):
 			await process_frame
 		await RenderingServer.frame_post_draw
 		var image: Image = root.get_texture().get_image()
 		var path := "%s/%s.png" % [OUT_DIR, shot["name"]]
 		image.save_png(path)
+		if shot.has("also"):
+			image.save_png(String(shot["also"]))
 		print("%-14s %-22s %d lights, ambient %s -- %s" % [
 			shot["name"], shot["map"], world.lighting.dynamic_light_count(),
 			world.lighting.ambient_node.color.to_html(false), shot["shows"]])
