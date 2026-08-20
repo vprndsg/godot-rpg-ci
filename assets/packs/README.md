@@ -1,7 +1,29 @@
 # Imported art packs
 
 Art in this project does not have to be drawn by `tools/gen_art.py`. Drop a
-sheet you bought or downloaded in here, point a tile at it, and it ships.
+sheet you bought, downloaded or rendered in here, point something at it, and
+it ships.
+
+This is the intended production pipeline, not a side door:
+
+```
+   Meshy / other 3D source
+            |
+   Blender: cleanup, rigging, animation, camera
+            |
+   PixelOver: render to pixels at the production scale
+            |
+   assets/packs/<name>/          <- a SOURCE, committed
+            |
+   +--------+--------+------------------+
+   |                 |                  |
+ tiles.json     actors.json      scenery.json
+ (a tile)      (a character)     (a prop of any size)
+```
+
+All three consumers use the same conventions: an anchor that is the pixel
+touching the ground, optional `_normal` / `_emission` siblings, and a licence
+that travels with the pixels.
 
 ## Why this does not cost the reproducibility gate
 
@@ -22,7 +44,7 @@ The one thing that *would* break it is pasting pixels straight into
 2. Copy `example-harbour/pack.json` next to it and fill it in.
 3. `tools/ci.sh art` — tells you whether the sprites fit the cell and land on
    the ground diamond, before you have wired anything up.
-4. Add tiles to `assets/tiles/tiles.json` with `"pack": "<name>"`:
+4. Point something at it. **A tile**, in `assets/tiles/tiles.json`:
 
    ```json
    "quay": { "atlas": [4, 4], "solid": true, "pack": "seaside-iso" }
@@ -30,8 +52,26 @@ The one thing that *would* break it is pasting pixels straight into
 
    The tile is looked up in the pack by the same name. Add `"pack_tile"` if
    the pack calls it something else.
+
+   **A scenery prop** — anything too big, too oddly shaped or too decorative to
+   be a tile — in `assets/scenery/scenery.json`, pointing straight at the sheet:
+
+   ```json
+   "redwood_trunk": {
+     "texture": "res://assets/packs/redwood/trunk.png",
+     "anchor": [180, 396], "plane": "playable",
+     "footprint": [[0, 0]], "requires_solid": true,
+     "pack": "redwood"
+   }
+   ```
+
+   **A character**, in `assets/sprites/actors.json`: a `sheets` entry naming
+   the pack's sheet, and an `actors` entry with its directions and clips. See
+   `docs/architecture/animation.md`.
+
 5. `tools/ci.sh generate` then `tools/ci.sh test`. Look at
-   `docs/art/atlas.png`: every tile is drawn with its ground diamond outlined.
+   `docs/art/atlas.png` (tiles, with the ground diamond outlined) or
+   `docs/art/actors.png` (characters, laid out from the manifest).
 
 ## The manifest
 
@@ -45,6 +85,7 @@ The one thing that *would* break it is pasting pixels straight into
   "sheet": "sheet.png",
   "cell_size": [64, 96],
   "anchor": [32, 80],
+  "scale": 1,
   "tiles": { "quay": [0, 0], "crane": [1, 0] }
 }
 ```
@@ -59,6 +100,14 @@ cell* that should end up at the centre of the ground diamond — normally the
 point the sprite stands on. Everything else about fitting foreign art to this
 grid falls out of it. If a sprite lands too high or too low, the anchor is
 wrong; nothing else needs touching.
+
+**`scale` is the second one.** A whole-number nearest-neighbour magnification,
+applied to the cell and the anchor together, for a sheet drawn on a smaller
+grid than ours. It never goes below 1 — downscaling pixel art destroys it, and
+an oversized sheet is a reason to adopt its geometry in `tiles.json` instead.
+The bundled `example-harbour` uses `"scale": 2`, because it was drawn for the
+grid this project had before the 64×32 migration; that is exactly the case
+`scale` exists for.
 
 ## Lighting-aware packs
 
@@ -82,37 +131,58 @@ says "collide on my whole diamond, occlude on my trunk
 gives its walls `occluder: true`, its lamps an `emit`, and its windows
 `emission` — all in `tiles.json`, no engine changes.
 
-Two lighting features have a naming convention reserved but no slicer yet:
+## Material maps
 
-- `sheet_normal.png` — a normal map, layout-identical to `sheet.png`, sliced
-  into `terrain_normal.png` (which `tools/build_tileset.gd` already wires into
-  a `CanvasTexture` the moment the file exists). Neutral flat is `8080ff`.
-- `sheet_emission.png` — self-lit pixels, layout-identical, sliced into
-  `terrain_emission.png` alongside the `e_<name>` painters.
+A pack may ship layout-identical siblings beside its diffuse sheet. **The name
+is the whole contract** — nothing in `pack.json` declares them, and the slicer
+picks them up because they are there:
 
-Until the slicing lands in `tools/gen_art.py`/`tools/packs.py`, a pack tile
-flagged `"emission": true` fails the build with a clear message (it needs an
-`e_<name>` painter today), and normal maps for pack art wait with normal maps
-for everything else. Build the slicer before shipping a pack that needs
-either; the file names above are the contract to build against.
+- `sheet_normal.png` — a normal map, sliced into `terrain_normal.png`.
+  `tools/build_tileset.gd` wires that into a `CanvasTexture` the moment it
+  exists, and every 2D light starts shading tiles by their normals. Neutral
+  flat is `8080ff`; cells no pack supplies are filled with it automatically, so
+  a half-authored atlas is not expressible.
+- `sheet_emission.png` — self-lit pixels, sliced into `terrain_emission.png`
+  alongside the `e_<name>` painters. A pack tile flagged `"emission": true`
+  takes its glow from here, and the build fails with a clear message if the
+  sibling is missing.
+
+Both are sliced through **exactly the same anchor arithmetic** as the diffuse,
+so a normal map cannot drift a pixel away from the art it shades. If the sheets
+disagree in size, `tools/ci.sh art` says so.
+
+Actors and scenery props name their material maps explicitly instead
+(`"normal"` / `"emission"` in the manifest or the registry), because their
+sheets are not sliced into a shared atlas. Same suffixes, same rule: always
+layout-identical to the diffuse.
 
 ## When a pack does not fit
 
 `tools/ci.sh art` reports two distinct failures, with different fixes.
 
 **"spills N pixels outside the atlas cell"** — the sprite is bigger than a
-`cell_size` from `tiles.json` (currently 32×64: a 32×16 diamond with 24px of
-headroom above it). Either the anchor is wrong, or the pack is simply drawn at
-a larger scale.
+`cell_size` from `tiles.json` (currently 64×128: a 64×32 diamond with 48px of
+headroom above it and 48px of padding below). Either the anchor is wrong, the
+`scale` is too high, or the pack is simply drawn at a larger scale.
+
+If it is genuinely just *big* — a redwood, a cliff face, a saloon front — it
+may not want to be a tile at all. `assets/scenery/scenery.json` takes sprites
+of any size with a one-cell footprint; see `docs/architecture/scenery.md`.
 
 If it is scale, **adopt the pack's geometry instead of fighting it.** Change
 `tile_size` and `cell_size` in `tiles.json` to match, and the engine, the
-projection in `scripts/iso.gd`, the collision shapes, the camera and the map
-renderer all follow — they read the registry rather than hardcoding numbers,
-and `tests/test_iso.gd` re-checks the projection against Godot at the new size.
+projection in `scripts/iso.gd`, the collision shapes, the camera limits, the
+elevation lift and all three renderers follow — they read the registry rather
+than hardcoding numbers, and `tests/test_iso.gd` re-checks the projection
+against Godot at the new size. `docs/architecture/rendering.md` has the
+procedure.
+
 The hand-drawn painters in `tools/gen_art.py` are the one thing that will not
-follow: they are composed for a 32×16 diamond and would need redrawing. If the
-pack is replacing them anyway, that cost is zero.
+follow: they are composed for a 32×16 diamond and are magnified into the
+production cell by an exact integer factor. A new size that is not a whole
+multiple of theirs means redrawing them — or deleting `legacy_art` from
+`tiles.json`, which retires the magnification entirely. If the pack is
+replacing them anyway, that cost is zero.
 
 Do not downscale pixel art to make it fit. It will look worse than anything
 this repo can draw.
@@ -127,6 +197,8 @@ the contact point.
 
 `example-harbour` is a placeholder authored for this repository, not something
 worth shipping. It exists so `tools/ci.sh generate` slices a real pack on every
-run, which means the import path is tested even when no real pack is installed.
+run, which means the import path is tested even when no real pack is installed
+— including, since the 64×32 migration, the `"scale": 2` path.
+
 Delete the directory and its two entries in `tiles.json` once you have art you
 actually want.

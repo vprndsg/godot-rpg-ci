@@ -10,9 +10,13 @@
 ##     Lighting
 ##     ├── Ambient        CanvasModulate -- the profile's ambient colour
 ##     ├── Sun            DirectionalLight2D -- the profile's directional light
-##     ├── DynamicLights  one PointLight2D per emitting cell, rebuilt per map
-##     └── Fx             reserved hook for screen effects (fog, grading,
-##                        pixel-quantized lighting) -- see docs/architecture/lighting.md
+##     └── DynamicLights  one PointLight2D per emitting cell, rebuilt per map
+##
+## Fog, colour grading and the pixel-quantization pass used to be a reserved
+## `Fx` child here. They are not lighting -- they are what happens to the
+## frame after lighting -- and they now have their own owner in
+## scripts/world_fx.gd. The dependency runs one way: neither node knows the
+## other exists. docs/architecture/fx.md explains the split.
 ##
 ## Occlusion never passes through here at runtime: occluder polygons are baked
 ## into terrain.tres from the same tile metadata by tools/build_tileset.gd,
@@ -23,6 +27,11 @@ extends Node2D
 ## The generated default falloff texture (tools/gen_art.py::build_lights).
 const POINT_LIGHT_TEXTURE := "res://assets/lights/point_light.png"
 
+## How many dynamic lights a map may spawn before this is a design problem
+## worth saying out loud. Not a wall -- the compatibility renderer and small
+## GPUs stop being happy long before lights stop being legal.
+const LIGHT_BUDGET := 32
+
 ## How long a map-to-map lighting change takes. The Router's fade covers it,
 ## so this is felt, not watched. Tests set it to 0 for exact assertions.
 var transition_seconds := 0.25
@@ -30,7 +39,6 @@ var transition_seconds := 0.25
 var ambient_node: CanvasModulate
 var sun: DirectionalLight2D
 var dynamic_lights: Node2D
-var fx: Node2D
 
 var _tween: Tween = null
 var _point_texture: Texture2D = null
@@ -87,8 +95,8 @@ func add_point_light(spec: Dictionary, pos: Vector2) -> PointLight2D:
 	# The generated texture reaches half its own width, so scale is radius
 	# over that half-width -- radius is authored in screen pixels.
 	if texture != null:
-		light.texture_scale = float(spec.get("radius", 32.0)) / (float(texture.get_width()) * 0.5)
-	light.height = float(spec.get("height", 12.0))
+		light.texture_scale = float(spec.get("radius", TileRegistry.default_radius())) / (float(texture.get_width()) * 0.5)
+	light.height = float(spec.get("height", TileRegistry.default_height()))
 	light.shadow_enabled = bool(spec.get("shadows", false))
 	# Hard-edged shadows: cheapest, and soft penumbras read as vector art here.
 	light.shadow_filter = Light2D.SHADOW_FILTER_NONE
@@ -109,14 +117,6 @@ func dynamic_light_count() -> int:
 	return dynamic_lights.get_child_count()
 
 
-## Reserved parent for future screen-space effects (fog, colour grading, a
-## pixel-quantization pass). Exists now so those features have an owner and a
-## place, instead of growing ad hoc onto World.
-func fx_root() -> Node2D:
-	_ensure_children()
-	return fx
-
-
 ## Every cell whose tile metadata says "emit" becomes a light. Both layers
 ## are scanned: a glowing floor is as legal as a glowing prop.
 func _spawn_tile_lights(map: MapData) -> void:
@@ -132,9 +132,7 @@ func _spawn_tile_lights(map: MapData) -> void:
 					continue
 				var light := add_point_light(spec, map.world_position(cell))
 				light.name = "%s_%d_%d" % [tile_name, x, y]
-	# A soft budget, not a wall: the compatibility renderer and small GPUs
-	# stop being happy long before lights stop being legal.
-	if dynamic_lights.get_child_count() > 32:
+	if dynamic_lights.get_child_count() > LIGHT_BUDGET:
 		push_warning("Map '%s' spawned %d point lights; consider fewer, brighter sources."
 			% [map.id, dynamic_lights.get_child_count()])
 
@@ -168,7 +166,3 @@ func _ensure_children() -> void:
 	dynamic_lights = Node2D.new()
 	dynamic_lights.name = "DynamicLights"
 	add_child(dynamic_lights)
-
-	fx = Node2D.new()
-	fx.name = "Fx"
-	add_child(fx)

@@ -118,13 +118,21 @@ blob that cannot be read or reviewed in a diff, which makes it useless to an
 agent working headlessly — so maps are ASCII and `scripts/map_loader.gd` builds
 the tile layers at runtime.
 
-The world draws isometric — 32×16 diamonds on a diamond grid — but the maps
-stay square. Isometric is a projection applied on the way to the screen, so a
+The world draws isometric — 64×32 diamonds on a diamond grid, in a 640×360
+frame — but the maps stay square. Isometric is a projection applied on the way to the screen, so a
 map is still a rectangle of characters you can read in a pull request, and
 walkability is still 4-connected. `scripts/iso.gd` is the whole of it, and
 `tests/test_iso.gd` checks it against Godot's own tile layout. The movement
 keys drive grid axes, so `D` walks down-right and two keys together give you
 the screen diagonals.
+
+Those two numbers live in exactly one place each — `assets/tiles/tiles.json`
+and `data/rendering.json` — and everything else derives from them.
+`docs/architecture/` has a design doc per subsystem: rendering, scenery,
+animation, camera, fx and lighting. **The art you see in the screenshots is
+placeholder**, drawn for an earlier, smaller grid and magnified; the engine is
+ready for the real thing, and `docs/architecture/rendering.md` explains the
+difference.
 
 ## What the tests actually catch
 

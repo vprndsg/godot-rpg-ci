@@ -10,6 +10,12 @@ const DEFS_DIR := "res://data/npcs"
 ## Tiles per second, like Player.SPEED -- an amble, not a march.
 const WANDER_SPEED := 1.4
 
+## Body and talk-range footprints, as fractions of the ground diamond -- the
+## same reasoning as Player.BODY_SPAN: shapes are built from the geometry, not
+## saved as pixel coordinates in a scene.
+const BODY_SPAN := 0.375
+const TALK_SPAN := 1.0
+
 @onready var sprite: ActorSprite = $Sprite
 
 var npc_id: String = ""
@@ -75,6 +81,8 @@ func configure(id: String, def: Dictionary, cell: Vector2i, facing: String) -> v
 
 
 func _ready() -> void:
+	$CollisionShape2D.shape = Iso.diamond_shape(BODY_SPAN)
+	$Interactable/CollisionShape2D.shape = Iso.diamond_shape(TALK_SPAN)
 	sprite.actor = String(get_meta("actor", "villager"))
 	sprite.facing = String(get_meta("facing", "down"))
 	_target = global_position
@@ -116,12 +124,12 @@ func _physics_process(delta: float) -> void:
 		velocity = allowed / delta
 	move_and_slide()
 	sprite.moving = true
-	sprite.facing = ActorSprite.facing_for(step)
+	sprite.facing = ActorSprite.facing_for(step, sprite.available_directions())
 
 
 func _update_lift() -> void:
 	if map != null:
-		sprite.ground_lift = map.elevation_at(Iso.cell_at(global_position)) * Iso.ELEVATION_HEIGHT
+		sprite.ground_lift = map.elevation_at(Iso.cell_at(global_position)) * Iso.elevation_height()
 
 
 func _pick_target() -> void:
@@ -147,4 +155,4 @@ func interact(player: Player) -> void:
 
 
 func _face_toward(point: Vector2) -> void:
-	sprite.facing = ActorSprite.facing_for(_grid_step_to(point))
+	sprite.facing = ActorSprite.facing_for(_grid_step_to(point), sprite.available_directions())

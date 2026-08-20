@@ -1,0 +1,15 @@
+{
+  "_comment": "The scenery registry: everything visible that is NOT a gameplay tile. A redwood trunk 400 pixels tall, a foreground branch cropped by the frame, a silhouetted ridge in the far distance. Tiles are the world the player walks on; scenery is the world they look at. scripts/scenery_registry.gd reads this, scripts/scene_planes.gd places it, maps reference it by name in a \"scenery\" array.",
+
+  "_anchor": "The one number that matters, exactly as it is for a tile or a pack: the pixel INSIDE the image that touches the ground. It is placed at the cell's ground position and it is what the prop sorts by. A 400px redwood and a 48px villager standing on the same cell sort identically, because both are sorted by their feet and neither by their picture.",
+
+  "_footprints": "Four different footprints, deliberately unrelated:\n  visual   - the image, which may cover half the screen and is nobody's business but the renderer's;\n  logical  - \"footprint\": the cells the thing occupies in the world model, usually one;\n  collision- NOT here. Scenery never collides. A redwood that blocks movement blocks it because the MAP puts a solid tile on its anchor cell, and \"requires_solid\" makes the validator prove it. Simulation stays in the grid;\n  occlusion- \"occluder\": the polygon that blocks light, same schema as a tile's, at most the logical footprint.",
+
+  "_planes": "\"plane\" is the default depth plane a prop belongs in -- far_background, playable, foreground, screen_background, screen_foreground. A placement may override it. Only the playable plane is y-sorted; the others are ordered by their \"sort\" key. See docs/architecture/scenery.md.",
+
+  "_materials": "\"normal\" and \"emission\" name layout-identical sibling images by the same convention packs and tile atlases use. Optional, and dormant until a source ships them.",
+
+  "_empty": "There is no production scenery yet, on purpose: this migration builds the contract, not the forest. A prop added here needs no engine change -- registry entry, map placement, done.",
+
+  "props": {}
+}

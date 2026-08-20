@@ -8,6 +8,8 @@
   "sheet": "sheet.png",
   "cell_size": [48, 72],
   "anchor": [24, 62],
+  "_scale": "This example was drawn for the pre-migration 32x16 grid. Rather than redraw it, it is magnified by a whole number on the way in -- which is exactly what a real pack drawn at half this project's scale should do. See assets/packs/README.md.",
+  "scale": 2,
   "tiles": {
     "bollard": [0, 0],
     "crate_stack": [1, 0]

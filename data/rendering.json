@@ -1,0 +1,28 @@
+{
+  "_comment": "THE presentation contract: how many pixels the game draws into, and how they reach a screen. The engine cannot read this file at boot -- project.godot has to carry the same numbers -- so tests/test_rendering.gd asserts the two agree and fails CI when they drift. Change it here first, then mirror it into project.godot. The other half of the contract, the 64x32 ground diamond, lives in assets/tiles/tiles.json.",
+
+  "_viewport": "640x360 is 16:9 at a scale where a 64x32 diamond reads: ten tiles across the screen, five and a half rows down. Everything that needs a screen size (camera framing, screen-space scenery, fx overlays, the light radii in tiles.json) is measured in these pixels.",
+  "viewport": [640, 360],
+
+  "_window": "The desktop window the project opens at -- an exact integer multiple of the viewport so a developer sees whole pixels. The web export scales to the canvas instead.",
+  "window": [1280, 720],
+
+  "_presentation": "canvas_items + integer scaling is the pixel-perfect pair: the world is drawn at the viewport resolution and blown up by a whole number, so no pixel is ever 1.5 pixels wide. 'keep' preserves 16:9 and letterboxes rather than revealing more world on a wide monitor, which matters because a fixed-camera composition is authored for a known frame.",
+  "stretch_mode": "canvas_items",
+  "stretch_aspect": "keep",
+  "scale_mode": "integer",
+
+  "_filter": "Nearest-neighbour, everywhere, forever. 0 is Godot's TEXTURE_FILTER_NEAREST.",
+  "texture_filter": 0,
+
+  "_layers": "The CanvasLayer budget. World-space planes draw on layer 0 (the default canvas); everything below is stacked around them, and UI stays above every world effect so grading never touches the dialogue box. scripts/scene_planes.gd and scripts/world_fx.gd own these; the Router's fade and the title live at the top on purpose.",
+  "layers": {
+    "screen_background": -10,
+    "world": 0,
+    "screen_foreground": 2,
+    "screen_fx": 5,
+    "ui": 10,
+    "title": 50,
+    "fade": 100
+  }
+}

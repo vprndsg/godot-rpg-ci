@@ -88,21 +88,30 @@ func test_tileset_is_an_isometric_diamond_grid() -> void:
 				% tile_name)
 
 
-func test_actor_sheet_covers_every_actor() -> void:
-	var texture: Texture2D = load("res://assets/sprites/actors.png")
-	if not ok(texture != null, "could not load the actor sheet"):
-		return
-	var frame := ActorSprite.frame_size()
+## The actor sheet holds every frame the manifest claims it does.
+##
+## The manifest is generated and the sheet is generated, from the same run --
+## so this is a drift check, exactly like the tileset one above. A clip whose
+## rows run past the bottom of the image draws nothing and says nothing.
+func test_actor_sheet_covers_every_clip() -> void:
 	var manifest := ActorSprite.manifest()
-	var directions: int = manifest.get("directions", []).size()
-	equal(directions, 4, "actor manifest should list four directions")
-	for actor_name: String in ActorSprite.actor_names():
-		var block := int(manifest["actors"][actor_name].get("row_block", -1))
-		ok(block >= 0, "actor '%s' has no row_block" % actor_name)
-		var bottom := (block * directions + directions) * frame.y
-		ok(bottom <= texture.get_height(),
-			"actor '%s' needs rows up to y=%d but the sheet is %dpx tall -- re-run tools/gen_art.py"
-				% [actor_name, bottom, texture.get_height()])
+	expect_no_errors(manifest.validate(), "assets/sprites/actors.json")
+	ok(manifest.actor_names().size() > 0, "the manifest defines no actors")
+	for actor_name: String in manifest.actor_names():
+		var texture: Texture2D = load(manifest.texture_path(actor_name))
+		if not ok(texture != null, "actor '%s' has no loadable sheet" % actor_name):
+			continue
+		var frame := manifest.frame_size(actor_name)
+		for clip_name: String in manifest.clip_names(actor_name):
+			var clip := manifest.resolve_clip(actor_name, clip_name)
+			var rows: PackedStringArray = clip["directions"]
+			var bottom := (int(clip["row"]) + rows.size()) * frame.y
+			ok(bottom <= texture.get_height(),
+				"actor '%s' clip '%s' needs rows up to y=%d but the sheet is %dpx tall -- re-run tools/gen_art.py"
+					% [actor_name, clip_name, bottom, texture.get_height()])
+			ok(int(clip["frames"]) * frame.x <= texture.get_width(),
+				"actor '%s' clip '%s' needs %d columns but the sheet is %dpx wide"
+					% [actor_name, clip_name, int(clip["frames"]), texture.get_width()])
 
 
 func test_every_npc_definition_is_usable() -> void:

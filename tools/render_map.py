@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Composite a map from maps/*.json into a viewable PNG.
 
-    python3 tools/render_map.py                     # every map, 3x
+    python3 tools/render_map.py                     # every map, 2x
     python3 tools/render_map.py port_azure_town     # one map
     python3 tools/render_map.py --scale 4 --grid --annotate
 
@@ -31,6 +31,11 @@ from pixel import (
     ROOT, Canvas, cell_centre, diamond_span, draw_text, footprint_top, level_px,
     load_png, rgb,
 )
+
+# Magnification for the committed renders. A production cell is 64x128, so
+# the town is already wide at 1:1; two is enough to read a tile and small
+# enough that GitHub still shows an image diff on a pull request.
+DEFAULT_SCALE = 2
 
 LAYERS = ("ground", "objects")
 # Stacked under every raised cell, one band per level -- the same tile
@@ -91,7 +96,7 @@ def outline(c, ox, oy, tw, th, scale, colour):
                     c.blend(ox + x * scale + sx, oy + y * scale + sy, colour)
 
 
-def render(map_id, scale=3, grid=False, annotate=False):
+def render(map_id, scale=DEFAULT_SCALE, grid=False, annotate=False):
     reg = json.load(open(os.path.join(ROOT, "assets/tiles/tiles.json")))
     atlas = load_png(os.path.join(ROOT, os.path.relpath(reg["atlas"].replace("res://", ""))))
     tw, th = (int(v) for v in reg["tile_size"])
@@ -243,7 +248,7 @@ def render(map_id, scale=3, grid=False, annotate=False):
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:]]
-    scale = 3
+    scale = DEFAULT_SCALE
     if "--scale" in args:
         i = args.index("--scale")
         scale = int(args[i + 1])

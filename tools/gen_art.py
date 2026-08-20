@@ -9,8 +9,17 @@ diff. Art lives in code so Claude can extend it headlessly: add a draw_* here,
 add the tile to assets/tiles/tiles.json, re-run this, then re-run
 tools/build_tileset.gd.
 
+LEGACY SCALE. Every painter below was composed for the pre-migration 32x16
+diamond and none of them has been redrawn for the production 64x32 one. They
+still paint at the old geometry (`legacy_art` in tiles.json) and the build
+magnifies the finished atlas by a whole number into the production cell --
+nearest neighbour, deterministic, no new colours. That is a migration path so
+the game keeps booting, not a look: these tiles are placeholders awaiting real
+64x32 art, drawn or imported. New art is authored at the production geometry
+and skips all of this; see docs/architecture/rendering.md.
+
 The world is isometric, so a tile is not a square. Every painter fills one
-atlas cell laid out like this:
+atlas cell laid out like this (in legacy pixels):
 
     row 0        +----------------+   headroom: walls, canopies, roofs
       ...        |                |   draw upwards into here
@@ -40,22 +49,33 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import packs
 
 from pixel import (  # noqa: F401  (rgb/CLEAR used by painters)
-    ROOT, Canvas, CLEAR, P, blob, diamond_floor, diamond_pixels, diamond_span,
-    fill_diamond, footprint_top, geometry, in_diamond, level_px, load_png,
-    noise, prism, rgb, shade,
+    ROOT, Canvas, CLEAR, P, art_scale, blob, diamond_floor, diamond_pixels,
+    diamond_span, fill_diamond, geometry, in_diamond, legacy_actor_frame,
+    legacy_geometry, load_png, noise, prism, rgb, scale, shade,
 )
 
-TW, TH, CW, CH = geometry()   # diamond 32x16 inside a 32x64 cell
-FOOT = footprint_top()        # 24 -- first row of the footprint in a cell
+# The geometry the painters below are composed at -- NOT the production one.
+# pixel.py's diamond helpers default to the production geometry, so every
+# painter passes these explicitly (or goes through ground()/block(), which do
+# it for them).
+TW, TH, CW, CH = legacy_geometry()
+FOOT = (CH - TH) // 2         # first row of the footprint in a legacy cell
+
+# Production geometry and the whole-number factor between the two. Everything
+# this module saves is magnified by ART_SCALE on the way out, so terrain.png
+# and actors.png are production-sized files drawn from legacy sources.
+PROD_TW, PROD_TH, PROD_CW, PROD_CH = geometry()
+ART_SCALE = art_scale()
 
 # How tall things stand, in pixels above their own ground. FOOT is the ceiling:
 # anything taller would climb out of its cell and be clipped.
 WALL_H = 16
 ROOF_H = 24
-# One terrain elevation level, 8px. Cliff bands are exactly this tall and
-# stair tiles rise exactly this much at their back edge, because the raised
-# ground diamond of the next level up sits exactly here.
-LEVEL_H = level_px()
+# One terrain elevation level in legacy pixels -- half the legacy diamond,
+# which magnifies to exactly Iso.elevation_height(). Cliff bands are exactly
+# this tall and stair tiles rise exactly this much at their back edge, because
+# the raised ground diamond of the next level up sits exactly here.
+LEVEL_H = TH // 2
 
 
 # --------------------------------------------------------------------------
@@ -615,6 +635,13 @@ def t_fence(c, ox, oy):
             x = 8 + i
             step = i // 2
             y = (4 + step) if axis > 0 else (12 - step)
+            # The rail line traces the diamond's edge, which at the very last
+            # column lands a pixel past the footprint. A picket's foot has to
+            # stand *on* the ground, so pull it back onto the diamond -- at
+            # the production scale one legacy pixel of overhang is two, and
+            # tools/ci.sh art is right to reject it.
+            if not in_diamond(x, y, TW, TH):
+                y -= 1
             for k in range(13):
                 c.set(ox + x, oy + FOOT + y - k, P["wood_lo"])
             c.set(ox + x, oy + FOOT + y - 13, P["wood"])
@@ -754,6 +781,71 @@ PAINTERS = {
 }
 
 
+def _registry():
+    return json.load(open(os.path.join(ROOT, "assets/tiles/tiles.json")))
+
+
+def _atlas_shape(reg):
+    return reg["atlas_columns"], max(t["atlas"][1] for t in reg["tiles"].values()) + 1
+
+
+class _PackReader:
+    """Opens each pack once and hands back its slices, in production pixels.
+
+    Packs are *not* legacy art: a sheet is anchored straight into a production
+    cell (magnified by its own `scale` if it was drawn small), so pack pixels
+    are stamped after the painters' output has been magnified, never before.
+    """
+
+    def __init__(self):
+        self._manifests = {}
+        self._sheets = {}
+
+    def manifest(self, pack_name, for_tile):
+        if pack_name not in self._manifests:
+            if pack_name not in packs.pack_names():
+                raise SystemExit("tile '%s' names pack '%s', which is not in assets/packs/"
+                                 % (for_tile, pack_name))
+            manifest = packs.load(pack_name)
+            broken = packs.problems(manifest)
+            if broken:
+                raise SystemExit("pack '%s' is not usable:\n  %s" % (pack_name, "\n  ".join(broken)))
+            self._manifests[pack_name] = manifest
+        return self._manifests[pack_name]
+
+    def sheet(self, pack_name, kind):
+        key = (pack_name, kind)
+        if key not in self._sheets:
+            manifest = self._manifests[pack_name]
+            path = (os.path.join(manifest["_dir"], manifest["sheet"]) if kind == "diffuse"
+                    else packs.sibling_path(manifest, kind))
+            self._sheets[key] = load_png(path)
+        return self._sheets[key]
+
+    def stamp(self, canvas, reg, tile_name, pack_name, kind="diffuse"):
+        """Draw one pack tile into the production atlas. False when the pack
+        ships no sheet of this kind, which is not an error -- material maps
+        are optional and a pack without one simply contributes nothing."""
+        manifest = self.manifest(pack_name, tile_name)
+        if kind != "diffuse" and not packs.provides(manifest, kind):
+            return False
+        source_name = reg["tiles"][tile_name].get("pack_tile", tile_name)
+        if source_name not in manifest["tiles"]:
+            raise SystemExit("pack '%s' has no tile '%s' (set \"pack_tile\" if it is named "
+                             "something else there)" % (pack_name, source_name))
+        pixels, spilled = packs.cell_pixels(
+            manifest, source_name, self.sheet(pack_name, kind), kind)
+        if spilled:
+            raise SystemExit(
+                "tile '%s' from pack '%s' does not fit a %dx%d cell: %d pixels spill outside. "
+                "Move the pack's anchor, lower its scale, or adopt its geometry in tiles.json."
+                % (tile_name, pack_name, PROD_CW, PROD_CH, len(spilled)))
+        ax, ay = reg["tiles"][tile_name]["atlas"]
+        for x, y, colour in pixels:
+            canvas.set(ax * PROD_CW + x, ay * PROD_CH + y, colour)
+        return True
+
+
 def build_terrain():
     """Compose the atlas from painters and from any imported art packs.
 
@@ -761,11 +853,14 @@ def build_terrain():
     `pack`, in which case its pixels are cut from that pack's sheet instead.
     Both are *sources*: terrain.png stays a build output either way, so the CI
     drift check keeps meaning what it means.
+
+    Painters draw into a legacy-sized canvas which is then magnified whole;
+    pack tiles are stamped afterwards, at production resolution, because they
+    were never legacy art in the first place.
     """
-    reg = json.load(open(os.path.join(ROOT, "assets/tiles/tiles.json")))
-    cols = reg["atlas_columns"]
-    rows = max(t["atlas"][1] for t in reg["tiles"].values()) + 1
-    c = Canvas(cols * CW, rows * CH)
+    reg = _registry()
+    cols, rows = _atlas_shape(reg)
+    legacy = Canvas(cols * CW, rows * CH)
 
     imported = packs.tile_owner(reg)
     missing = sorted(set(reg["tiles"]) - set(PAINTERS) - set(imported))
@@ -774,43 +869,22 @@ def build_terrain():
             "tiles.json lists tiles with neither a painter here nor a 'pack': %s"
             % ", ".join(missing))
 
-    manifests, sheets = {}, {}
     for name, info in reg["tiles"].items():
-        ax, ay = info["atlas"]
-        pack_name = imported.get(name)
-        if pack_name is None:
-            PAINTERS[name](c, ax * CW, ay * CH)
+        if name in imported:
             continue
+        ax, ay = info["atlas"]
+        PAINTERS[name](legacy, ax * CW, ay * CH)
 
-        if pack_name not in manifests:
-            if pack_name not in packs.pack_names():
-                raise SystemExit("tile '%s' names pack '%s', which is not in assets/packs/"
-                                 % (name, pack_name))
-            manifests[pack_name] = packs.load(pack_name)
-            broken = packs.problems(manifests[pack_name])
-            if broken:
-                raise SystemExit("pack '%s' is not usable:\n  %s" % (pack_name, "\n  ".join(broken)))
-            sheets[pack_name] = load_png(os.path.join(
-                manifests[pack_name]["_dir"], manifests[pack_name]["sheet"]))
-
-        manifest = manifests[pack_name]
-        source_name = info.get("pack_tile", name)
-        if source_name not in manifest["tiles"]:
-            raise SystemExit("pack '%s' has no tile '%s' (set \"pack_tile\" if it is named "
-                             "something else there)" % (pack_name, source_name))
-        pixels, spilled = packs.cell_pixels(manifest, source_name, sheets[pack_name])
-        if spilled:
-            raise SystemExit(
-                "tile '%s' from pack '%s' does not fit a %dx%d cell: %d pixels spill outside. "
-                "Move the pack's anchor, or adopt its geometry in tiles.json."
-                % (name, pack_name, CW, CH, len(spilled)))
-        for x, y, colour in pixels:
-            c.set(ax * CW + x, ay * CH + y, colour)
+    c = scale(legacy, ART_SCALE)
+    reader = _PackReader()
+    for name in sorted(imported):
+        reader.stamp(c, reg, name, imported[name])
 
     c.save(os.path.join(ROOT, "assets/tiles/terrain.png"))
+    return reader
 
 
-def build_emission():
+def build_emission(reader=None):
     """Compose terrain_emission.png: the self-lit pixels of emissive tiles.
 
     Same dimensions and cell layout as terrain.png -- the runtime shader
@@ -819,41 +893,60 @@ def build_emission():
     flagged "emission" in tiles.json draw anything, and the flag and the
     painter table must agree exactly or somebody's lamp silently never glows.
     """
-    reg = json.load(open(os.path.join(ROOT, "assets/tiles/tiles.json")))
-    cols = reg["atlas_columns"]
-    rows = max(t["atlas"][1] for t in reg["tiles"].values()) + 1
-    c = Canvas(cols * CW, rows * CH)
+    reg = _registry()
+    cols, rows = _atlas_shape(reg)
+    legacy = Canvas(cols * CW, rows * CH)
 
+    imported = packs.tile_owner(reg)
     flagged = sorted(
         name for name, info in reg["tiles"].items()
         if isinstance(info.get("lighting"), dict) and info["lighting"].get("emission"))
-    missing = sorted(set(flagged) - set(EMISSION_PAINTERS))
+    drawn = [name for name in flagged if name not in imported]
+    missing = sorted(set(drawn) - set(EMISSION_PAINTERS))
     if missing:
         raise SystemExit(
-            "tiles.json flags tiles as emissive with no e_<name> painter here: %s "
-            "(packs cannot supply emission pixels yet -- draw a painter)" % ", ".join(missing))
+            "tiles.json flags tiles as emissive with no e_<name> painter here: %s"
+            % ", ".join(missing))
     orphaned = sorted(set(EMISSION_PAINTERS) - set(flagged))
     if orphaned:
         raise SystemExit(
             "emission painters exist for tiles not flagged \"emission\" in tiles.json: %s"
             % ", ".join(orphaned))
 
-    for name in flagged:
+    for name in drawn:
         ax, ay = reg["tiles"][name]["atlas"]
-        EMISSION_PAINTERS[name](c, ax * CW, ay * CH)
+        EMISSION_PAINTERS[name](legacy, ax * CW, ay * CH)
+
+    c = scale(legacy, ART_SCALE)
+    # An imported emissive tile gets its glowing pixels from the pack's
+    # sheet_emission.png, sliced through the same anchor as its diffuse.
+    reader = reader or _PackReader()
+    for name in flagged:
+        if name not in imported:
+            continue
+        if not reader.stamp(c, reg, name, imported[name], "emission"):
+            raise SystemExit(
+                "tile '%s' is flagged \"emission\" but pack '%s' ships no %s -- "
+                "add the sibling sheet or drop the flag"
+                % (name, imported[name],
+                   os.path.basename(packs.sibling_path(reader.manifest(imported[name], name), "emission"))))
     c.save(os.path.join(ROOT, "assets/tiles/terrain_emission.png"))
 
 
 def build_lights():
     """Draw the default PointLight2D falloff into assets/lights/point_light.png.
 
-    A 64x64 radial glow quantized into discrete rings, because a smooth
-    gradient magnified over crisp pixels reads as a vector overlay. Rendered
-    with nearest filtering the stepped rings stay chunky at any window scale.
+    A radial glow quantized into discrete rings, because a smooth gradient
+    magnified over crisp pixels reads as a vector overlay. Rendered with
+    nearest filtering the stepped rings stay chunky at any window scale.
     White with brightness in both rgb and alpha, so the runtime tints it via
     Light2D.color and the same texture serves every emitter.
+
+    Sized with the world: a light radius is authored in screen pixels, so at
+    the production scale the same lamp covers twice as many of them and the
+    texture has to have the resolution to stay quantized rather than blurred.
     """
-    size = 64
+    size = 64 * ART_SCALE
     steps = 6
     c = Canvas(size, size)
     centre = (size - 1) / 2.0
@@ -873,8 +966,44 @@ def build_lights():
     c.save(path)
 
 
+def build_normals(reader=None):
+    """Compose terrain_normal.png, but only if some source actually has normals.
+
+    The rule from docs/architecture/lighting.md: a normal atlas may not ship
+    half-authored, because a cell with no normal would receive no light at
+    all. So the whole atlas starts at neutral flat (8080ff, opaque) and packs
+    that ship a sheet_normal.png stamp over it -- painted tiles stay neutral
+    and light exactly as they did before.
+
+    When nothing provides normals the file is removed rather than written, so
+    the tileset baker's "does terrain_normal.png exist" test keeps meaning
+    "does anybody have normals", and the build stays reproducible either way.
+    """
+    reg = _registry()
+    imported = packs.tile_owner(reg)
+    reader = reader or _PackReader()
+    with_normals = sorted(
+        name for name, pack_name in imported.items()
+        if packs.provides(reader.manifest(pack_name, name), "normal"))
+
+    path = os.path.join(ROOT, "assets/tiles/terrain_normal.png")
+    if not with_normals:
+        if os.path.exists(path):
+            os.remove(path)
+            print("removed %s (no source provides normals)" % os.path.relpath(path, ROOT))
+        return
+
+    cols, rows = _atlas_shape(reg)
+    c = Canvas(cols * PROD_CW, rows * PROD_CH)
+    c.rect(0, 0, c.w, c.h, rgb("8080ff"))
+    for name in with_normals:
+        reader.stamp(c, reg, name, imported[name], "normal")
+    c.save(path)
+
+
 # --------------------------------------------------------------------------
-# actor sprite sheet: 16x24 frames, 4 frames per row, 4 rows (dirs) per actor
+# actor sprite sheet: legacy 16x24 frames, 4 frames per row, 4 rows (dirs)
+# per actor, magnified by ART_SCALE into the production sheet
 # rows are down, left, right, up -- see ACTORS for the row block order
 #
 # Those names are grid directions, so on screen they are the four diagonals:
@@ -882,8 +1011,12 @@ def build_lights():
 # and show a back. Each is angled to the side it travels.
 # --------------------------------------------------------------------------
 
-FRAME_W, FRAME_H = 16, 24
-FOOT_ROW = 22   # the row an actor stands on; scripts/actor_sprite.gd agrees
+FRAME_W, FRAME_H, FOOT_ROW = legacy_actor_frame()  # legacy pixels: 16x24, feet at row 22
+## Grid directions, in the order this sheet stacks its rows. Only four of the
+## eight the animation contract supports are authored here -- these characters
+## predate it, and scripts/actor_manifest.gd falls the other four back onto
+## the nearest authored one rather than pretending they exist.
+DIRECTIONS = ["down", "left", "right", "up"]
 
 ACTORS = [
     # name,          skin,     hair,     shirt,    pants,    accent
@@ -977,22 +1110,71 @@ def draw_actor(c, ox, oy, role, dir_idx, frame, skin, hair, shirt, pants, accent
         c.hline(ox + 4, oy + 15, 8, AC)
 
 
+WALK_FRAMES = 4
+WALK_FPS = 7.0
+
+
 def build_actors():
-    rows = len(ACTORS) * 4
-    c = Canvas(4 * FRAME_W, rows * FRAME_H)
+    """The legacy cast sheet plus the manifest that describes it.
+
+    The pixels are drawn at the legacy frame size and magnified whole, like
+    the tiles. The manifest, though, is written in the *new* schema: sheets,
+    per-actor clips, explicit rows, per-clip frame counts and frame rates.
+    These four characters only have `idle` and `walk` in four directions --
+    that is what they were drawn with -- and a production character dropped in
+    later simply declares more of the same fields. Nothing about the runtime
+    changes between the two; see docs/architecture/animation.md.
+    """
+    dirs = len(DIRECTIONS)
+    legacy = Canvas(WALK_FRAMES * FRAME_W, len(ACTORS) * dirs * FRAME_H)
     for a, (name, skin, hair, shirt, pants, accent) in enumerate(ACTORS):
-        for d in range(4):
-            for f in range(4):
-                draw_actor(c, f * FRAME_W, (a * 4 + d) * FRAME_H,
+        for d in range(dirs):
+            for f in range(WALK_FRAMES):
+                draw_actor(legacy, f * FRAME_W, (a * dirs + d) * FRAME_H,
                            name, d, f, skin, hair, shirt, pants, accent)
-    c.save(os.path.join(ROOT, "assets/sprites/actors.png"))
+    scale(legacy, ART_SCALE).save(os.path.join(ROOT, "assets/sprites/actors.png"))
+
     manifest = {
-        "frame_size": [FRAME_W, FRAME_H],
-        "frames_per_direction": 4,
-        "directions": ["down", "left", "right", "up"],
-        "foot_row": FOOT_ROW,
-        "actors": {name: {"row_block": i} for i, (name, *_ ) in enumerate(ACTORS)},
+        "_comment": "GENERATED by tools/gen_art.py -- never hand-edit. The actor "
+                    "animation contract: a sheet says how big a frame is and where "
+                    "the feet are in it, an actor names its sheet, its authored "
+                    "directions and its clips, and a clip is a row plus a frame "
+                    "count plus a frame rate. Rows run one per direction from the "
+                    "clip's own row, in the sheet's direction order. "
+                    "docs/architecture/animation.md is the schema; "
+                    "scripts/actor_manifest.gd validates it.",
+        "_legacy": "These four characters were drawn for the pre-migration 16x24 "
+                   "frame and are magnified into the production one. They author "
+                   "four of the eight directions and two of the clips; missing "
+                   "directions and clips fall back rather than failing. They are "
+                   "placeholders, not the visual target.",
+        "version": 2,
+        "directions": DIRECTIONS,
+        "clip_fallbacks": {
+            "run": "walk", "trot": "walk", "sniff": "idle",
+            "turn": "idle", "sit": "idle",
+        },
+        "sheets": {
+            "port_azure_legacy": {
+                "texture": "res://assets/sprites/actors.png",
+                "frame_size": [FRAME_W * ART_SCALE, FRAME_H * ART_SCALE],
+                "anchor": [FRAME_W * ART_SCALE // 2, FOOT_ROW * ART_SCALE],
+            },
+        },
+        "actors": {},
     }
+    for i, (name, *_rest) in enumerate(ACTORS):
+        row = i * dirs
+        manifest["actors"][name] = {
+            "sheet": "port_azure_legacy",
+            "directions": DIRECTIONS,
+            "clips": {
+                # Frame 0 of the walk cycle is the standing pose, so idle is
+                # that one frame held: no separate art, no separate rows.
+                "idle": {"row": row, "frames": 1, "fps": 0.0, "loop": False},
+                "walk": {"row": row, "frames": WALK_FRAMES, "fps": WALK_FPS, "loop": True},
+            },
+        }
     path = os.path.join(ROOT, "assets/sprites/actors.json")
     with open(path, "w") as f:
         json.dump(manifest, f, indent=2)
@@ -1001,7 +1183,9 @@ def build_actors():
 
 
 if __name__ == "__main__":
-    build_terrain()
-    build_emission()
+    # One reader, so each pack sheet is opened once across all three atlases.
+    pack_reader = build_terrain()
+    build_emission(pack_reader)
+    build_normals(pack_reader)
     build_lights()
     build_actors()

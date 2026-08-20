@@ -23,8 +23,14 @@ static func data() -> Dictionary:
 	return _cache
 
 
-## Only useful in tests, which mutate nothing but may run before/after edits.
-static func reload() -> void:
+## Drop the parsed registry so the next call re-reads tiles.json. Only useful
+## in tests, which drive this either side of an edit.
+##
+## Deliberately NOT called `reload()`: `Script` already has a method of that
+## name, and `TileRegistry.reload()` resolves to *that* one -- which reloads
+## the script (resetting the static by luck) or fails outright once an
+## instance exists. A static named after a built-in is a coin flip.
+static func clear_cache() -> void:
 	_cache = {}
 
 
@@ -127,14 +133,27 @@ const LIGHTING_KEYS: PackedStringArray = ["emit", "occluder", "emission"]
 const EMIT_KEYS: PackedStringArray = ["color", "energy", "radius", "offset", "height", "shadows"]
 const OCCLUDER_KEYS: PackedStringArray = ["shape", "scale", "points"]
 
-## Defaults for a light emitter. Radius is in screen pixels; offset is screen
-## pixels relative to the centre of the tile's ground diamond (negative y is
-## up, toward a lamp head). Height feeds normal-mapped lighting and must stay
-## above zero or normal-mapped art would receive no light at all.
+## Defaults for a light emitter that says nothing. Radius and height are
+## screen pixels and therefore scale with the world, so they are derived from
+## the tile geometry rather than written down -- see default_radius() below.
+## Offset is screen pixels relative to the centre of the tile's ground diamond
+## (negative y is up, toward a lamp head).
 const EMIT_DEFAULTS := {
-	"color": "ffffff", "energy": 1.0, "radius": 32.0,
-	"offset": [0.0, 0.0], "height": 12.0, "shadows": false,
+	"color": "ffffff", "energy": 1.0, "offset": [0.0, 0.0], "shadows": false,
 }
+
+
+## A light that names no radius reaches one tile width. Derived, so moving the
+## production scale moves every unstated radius with it.
+static func default_radius() -> float:
+	return Iso.tile().x
+
+
+## How far off the canvas a light sits, for normal-mapped shading. Three
+## quarters of a diamond's height: a value, never zero, that grows with the
+## art it grazes.
+static func default_height() -> float:
+	return Iso.tile().y * 0.75
 
 
 ## The raw "lighting" block of a tile, or {} when it has none.
@@ -159,9 +178,9 @@ static func light_emitter(tile_name: String) -> Dictionary:
 	return {
 		"color": Color.html(colour) if Color.html_is_valid(colour) else Color.WHITE,
 		"energy": float(spec.get("energy", EMIT_DEFAULTS["energy"])),
-		"radius": float(spec.get("radius", EMIT_DEFAULTS["radius"])),
+		"radius": float(spec.get("radius", default_radius())),
 		"offset": Vector2(float(raw_offset[0]), float(raw_offset[1])),
-		"height": float(spec.get("height", EMIT_DEFAULTS["height"])),
+		"height": float(spec.get("height", default_height())),
 		"shadows": bool(spec.get("shadows", EMIT_DEFAULTS["shadows"])),
 	}
 

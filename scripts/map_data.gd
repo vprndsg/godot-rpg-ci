@@ -17,7 +17,10 @@ const EMPTY := " "
 ## y-sorted with them so the player can walk behind a tree.
 const LAYERS: PackedStringArray = ["ground", "objects"]
 
-const FACINGS: PackedStringArray = ["down", "left", "right", "up"]
+## The directions an NPC may be placed facing. All eight the animation
+## contract knows; the four grid axes are the ones the shipped art authors,
+## and ActorManifest snaps anything else onto the nearest one it can draw.
+const FACINGS: PackedStringArray = ActorManifest.DIRECTIONS
 
 ## What shows beyond the edge of the world.
 ##
@@ -38,6 +41,20 @@ var background: Color = Color.html(DEFAULT_BACKGROUND)
 ## full-bright default. scripts/lighting_profile.gd resolves it; the world's
 ## Lighting node applies it. Kept raw here so MapData stays a pure parser.
 var lighting: Dictionary = {}
+## The raw "camera" block: how this map wants to be framed. Empty means
+## FOLLOW over the whole map -- what every map did before camera modes
+## existed. scripts/camera_config.gd resolves it, GameCamera applies it.
+var camera: Dictionary = {}
+## The raw "fx" block: a preset name plus per-effect overrides. Empty means no
+## effects at all, which is pixel-identical to the world before the fx system.
+## scripts/fx_config.gd resolves it, WorldFx builds it.
+var fx: Dictionary = {}
+## Scenery placements: the composed picture around the playable world.
+## Deliberately NOT a tile layer -- these have no cell, no collision and no
+## size limit. scripts/scenery_registry.gd validates them, ScenePlanes places
+## them. Empty on every map that is just a tile world, which is all of them
+## today.
+var scenery: Array[Dictionary] = []
 var legend: Dictionary = {}
 var layers: Dictionary = {}          # layer name -> PackedStringArray of rows
 ## Terrain height per cell, one digit 0-9 per character. Not a tile layer:
@@ -128,6 +145,28 @@ func _from_dict(raw: Dictionary) -> void:
 		lighting = raw_lighting
 	else:
 		parse_errors.append("'lighting' must be an object like {\"profile\": \"outdoor_day\"}")
+
+	var raw_camera: Variant = raw.get("camera", {})
+	if raw_camera is Dictionary:
+		camera = raw_camera
+	else:
+		parse_errors.append("'camera' must be an object like {\"mode\": \"room_locked\"}")
+
+	var raw_fx: Variant = raw.get("fx", {})
+	if raw_fx is Dictionary:
+		fx = raw_fx
+	else:
+		parse_errors.append("'fx' must be an object like {\"preset\": \"pixel_quantize\"}")
+
+	var raw_scenery: Variant = raw.get("scenery", [])
+	if raw_scenery is Array:
+		for entry: Variant in raw_scenery:
+			if entry is Dictionary:
+				scenery.append(entry)
+			else:
+				parse_errors.append("every 'scenery' entry must be an object with a 'prop'")
+	else:
+		parse_errors.append("'scenery' must be a list of placements")
 
 	for layer_name: String in LAYERS:
 		var rows: PackedStringArray = []
@@ -409,8 +448,14 @@ func validate() -> PackedStringArray:
 				if code < 48 or code > 57:  # '0'..'9'
 					errors.append("'elevation' row %d has '%s' at column %d; every cell must be a digit 0-9" % [y, row[x], x])
 
-	# 2. the lighting block resolves: profile exists, values are well-formed
+	# 2. the presentation blocks resolve: the profile, the camera framing, the
+	#    effect stack and the scenery placements are all optional, and all of
+	#    them fail loudly rather than silently when they are malformed.
 	errors.append_array(LightingProfile.validate_spec(lighting, "lighting"))
+	errors.append_array(CameraConfig.validate_spec(camera, "camera", Vector2i(width, height)))
+	errors.append_array(FxConfig.validate_spec(fx, "fx"))
+	errors.append_array(SceneryRegistry.load_default().validate_placements(
+		scenery, "scenery", self))
 
 	# 3. legend is complete and points at real tiles
 	for ch: String in legend:

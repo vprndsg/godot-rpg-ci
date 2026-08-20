@@ -19,18 +19,22 @@
 class_name Iso
 extends RefCounted
 
+## Width and height of the ground diamond, in pixels. Read from
+## assets/tiles/tiles.json, which is the one place the world's geometry is
+## written down -- everything below derives from this call, so moving the
+## production scale is a two-number edit in the registry and nothing else.
+static func tile() -> Vector2:
+	return Vector2(TileRegistry.tile_size())
+
+
 ## Screen pixels one level of terrain elevation rises. Half the diamond's
 ## height on purpose: raising a cell by one level lifts it exactly as far as
 ## stepping one cell toward the back of the map does, so a slope reads at the
-## same pitch as the ground it climbs. tests/test_iso.gd pins this against
-## the registry's tile size; tools/pixel.py's level_px() is the same value
-## for the Python renderers.
-const ELEVATION_HEIGHT := 8.0
-
-
-## Width and height of the ground diamond, in pixels.
-static func tile() -> Vector2:
-	return Vector2(TileRegistry.tile_size())
+## same pitch as the ground it climbs. Derived, never written down: at the
+## production 64x32 diamond it is 16px, and tools/pixel.py's level_px()
+## computes the same value from the same registry for the Python renderers.
+static func elevation_height() -> float:
+	return tile().y * 0.5
 
 
 ## Screen offset that lifts something `level` elevation levels above the flat
@@ -39,7 +43,7 @@ static func tile() -> Vector2:
 ## pixels. Fractional levels are meaningful -- an actor mid-jump will be at
 ## one someday.
 static func elevation_offset(level: float) -> Vector2:
-	return Vector2(0.0, -level * ELEVATION_HEIGHT)
+	return Vector2(0.0, -level * elevation_height())
 
 
 ## A grid-space vector (in tiles) as a screen-space vector (in pixels).
@@ -91,14 +95,35 @@ static func diamond(shrink: float = 1.0) -> PackedVector2Array:
 	])
 
 
+## The ground diamond as a physics shape. Bodies, interaction areas and tile
+## footprints all take their collision from here, so a change of geometry
+## moves every one of them together -- a polygon saved in a .tscn would keep
+## the old scale and nothing would say so.
+static func diamond_shape(shrink: float = 1.0) -> ConvexPolygonShape2D:
+	var shape := ConvexPolygonShape2D.new()
+	shape.points = diamond(shrink)
+	return shape
+
+
 ## Screen rectangle covering a whole grid, corner diamonds included.
 ##
 ## A diamond grid leans left as it goes down, so this starts at a negative x
 ## for anything taller than one row. Cameras clamp to it.
 static func grid_bounds(size: Vector2i) -> Rect2:
+	return cell_bounds(Rect2i(Vector2i.ZERO, size))
+
+
+## Screen rectangle covering any rectangle of cells, corner diamonds included.
+##
+## The four extremes of a diamond block are four different cells: the leftmost
+## point belongs to the bottom-left cell, the rightmost to the top-right. A
+## room-locked camera frames a sub-rectangle of a map, which is why this is
+## the general form and grid_bounds() is the whole-map case of it.
+static func cell_bounds(cells: Rect2i) -> Rect2:
 	var t := tile()
-	var span := float(size.x + size.y)
-	return Rect2(
-		Vector2(-(size.y - 1) * t.x * 0.5, 0.0),
-		Vector2(span * t.x * 0.5, span * t.y * 0.5)
-	)
+	var last := cells.position + cells.size - Vector2i.ONE
+	var left := cell_centre(Vector2(cells.position.x, last.y)).x - t.x * 0.5
+	var right := cell_centre(Vector2(last.x, cells.position.y)).x + t.x * 0.5
+	var top := cell_centre(Vector2(cells.position)).y - t.y * 0.5
+	var bottom := cell_centre(Vector2(last)).y + t.y * 0.5
+	return Rect2(Vector2(left, top), Vector2(right - left, bottom - top))

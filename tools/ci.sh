@@ -123,8 +123,13 @@ cmd_shots() {
   command -v xvfb-run >/dev/null || die "shots needs xvfb-run (apt-get install xvfb)"
   say "Screenshotting the running game"
   # Not run_godot: this one needs a display, so --headless is exactly wrong.
+  # The window size comes from the presentation contract, doubled -- one
+  # integer scale up from the 640x360 internal viewport, so what lands in
+  # docs/shots/ is whole pixels and not a resampled guess.
+  local shot_size
+  shot_size="$(python3 -c 'import sys; sys.path.insert(0, "tools"); import pixel; w, h = pixel.viewport(); print("%dx%d" % (w * 2, h * 2))')"
   xvfb-run -a "$GODOT_BIN" --path "$ROOT" --rendering-driver opengl3 \
-    --resolution 960x576 --script res://tools/shoot.gd
+    --resolution "$shot_size" --script res://tools/shoot.gd
   ls -la "$ROOT/docs/shots"
 }
 
