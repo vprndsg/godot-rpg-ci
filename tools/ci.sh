@@ -4,6 +4,7 @@
 #
 #   tools/ci.sh setup     download Godot + the web export templates into .tools/
 #   tools/ci.sh import     re-import assets (must run before anything else)
+#   tools/ci.sh inbox      bake everything in inbox/ into a pack, then verify
 #   tools/ci.sh generate   regenerate the art, the baked tileset and the sheets
 #   tools/ci.sh sheets     re-render docs/art/ only (no Godot needed)
 #   tools/ci.sh art        check every tile stands on the grid (no Godot needed)
@@ -102,6 +103,14 @@ cmd_sheets() {
   python3 tools/render_map.py
 }
 
+# The whole point of inbox/: one command turns a model somebody dropped in
+# there into an installed, wired-up, validated pack. It ends by running the
+# same gates a human would, so the answer is "shipped" or a specific error.
+cmd_inbox() {
+  say "Processing inbox/"
+  python3 tools/inbox.py "$@"
+}
+
 cmd_generate() {
   need_godot
   say "Regenerating art"
@@ -135,6 +144,10 @@ cmd_shots() {
 
 cmd_test() {
   need_godot
+  # The pipeline suite first: it needs no engine, so a broken bake reports in
+  # two seconds instead of after an import pass.
+  say "Running the pipeline suite"
+  python3 tests/test_pipeline.py
   say "Running tests"
   run_godot --script res://tests/run_tests.gd -- "$@"
 }
@@ -157,6 +170,7 @@ cmd_export() {
 case "${1:-all}" in
   setup)    cmd_setup ;;
   import)   cmd_import ;;
+  inbox)    shift; cmd_inbox "$@" ;;
   generate) cmd_generate ;;
   sheets)   cmd_sheets ;;
   art)      cmd_art ;;
@@ -164,5 +178,5 @@ case "${1:-all}" in
   test)     shift; cmd_test "$@" ;;
   export)   cmd_export ;;
   all)      cmd_import; cmd_test; cmd_export ;;
-  *)        die "unknown command '$1' (try: setup, import, generate, sheets, art, shots, test, export, all)" ;;
+  *)        die "unknown command '$1' (try: setup, import, inbox, generate, sheets, art, shots, test, export, all)" ;;
 esac

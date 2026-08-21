@@ -28,6 +28,7 @@ magnified ×2. That is a migration path, not the visual target.
 
 ```bash
 tools/ci.sh setup      # download Godot + web export templates into .tools/
+tools/ci.sh inbox      # bake everything in inbox/ into a pack, then verify
 tools/ci.sh import     # re-import assets; run after touching assets or scenes
 tools/ci.sh generate   # redraw art, rebake the tileset, re-render docs/art/
 tools/ci.sh sheets     # re-render docs/art/ only — needs no Godot at all

@@ -23,3 +23,7 @@ __pycache__/
 # or an agent to look at, never shipped art -- everything under assets/ must
 # stay reproducible from code.
 docs/art/refs/
+
+# The inbox is a staging area: Godot must not import what lands in it,
+# and the pipeline consumes the source into assets/packs/ as it installs it.
+inbox/*.import

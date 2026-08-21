@@ -83,6 +83,7 @@ You do not need the Godot editor, but you do need the binary.
 
 ```bash
 tools/ci.sh setup     # downloads Godot 4.7.2 + the web export templates
+tools/ci.sh inbox     # turn a model dropped in inbox/ into a game asset
 tools/ci.sh import    # re-import assets
 tools/ci.sh test      # the whole suite, ~2 seconds
 tools/ci.sh export    # web build into build/web/

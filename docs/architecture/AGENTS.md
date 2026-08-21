@@ -14,6 +14,7 @@ The design references, each owning one subsystem:
 | [`camera.md`](camera.md) | FOLLOW / ROOM_LOCKED / FIXED / CINEMATIC |
 | [`fx.md`](fx.md) | fog, grading, quantization and who owns them |
 | [`lighting.md`](lighting.md) | ambient, sun, emitters, occluders, emission |
+| [`inbox.md`](inbox.md) | a 3D model to a shipped sprite sheet, headless |
 
 The repo-wide guide is the root `AGENTS.md`. Everything here is done by
 editing text files and running `tools/ci.sh`. There is no editor, and nothing

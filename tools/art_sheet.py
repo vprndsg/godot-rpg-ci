@@ -123,9 +123,13 @@ def build_actor_sheet():
     learns the layout instead of being told it.
     """
     manifest = json.load(open(os.path.join(ROOT, "assets/sprites/actors.json")))
-    sheet = load_png(os.path.join(ROOT, "assets/sprites/actors.png"))
     sheets = manifest["sheets"]
     actors = sorted(manifest["actors"])
+    # Each sheet is loaded from the texture the manifest names, not from one
+    # assumed file: an imported character brings its own sheet, and blitting it
+    # out of the legacy one silently renders an empty panel.
+    pixels = {name: load_png(os.path.join(ROOT, spec["texture"].replace("res://", "")))
+              for name, spec in sheets.items()}
 
     label_col = 74
     gap = 12
@@ -136,14 +140,14 @@ def build_actor_sheet():
         fw, fh = entry.get("frame_size", source["frame_size"])
         dirs = entry.get("directions", manifest["directions"])
         clips = [(name, entry["clips"][name]) for name in sorted(entry["clips"])]
-        panels.append((actor, fw, fh, dirs, clips))
+        panels.append((actor, fw, fh, dirs, clips, pixels[entry["sheet"]]))
 
     def panel_size(fw, fh, dirs, clips):
         columns = sum(int(clip["frames"]) for _, clip in clips)
         width = label_col + columns * (fw * ACTOR_ZOOM + 4) + gap * len(clips) + 10
         return width, len(dirs) * (fh * ACTOR_ZOOM + 4) + 34
 
-    sizes = [panel_size(fw, fh, d, c) for _, fw, fh, d, c in panels]
+    sizes = [panel_size(fw, fh, d, c) for _, fw, fh, d, c, _px in panels]
     top = 46
     c = Canvas(max(w for w, _ in sizes) + 12, top + sum(h + 6 for _, h in sizes) + 12)
     c.rect(0, 0, c.w, c.h, BG)
@@ -152,7 +156,7 @@ def build_actor_sheet():
            % len(actors))
 
     y = top
-    for (actor, fw, fh, dirs, clips), (panel_w, panel_h) in zip(panels, sizes):
+    for (actor, fw, fh, dirs, clips, sheet), (panel_w, panel_h) in zip(panels, sizes):
         c.rect(6, y, c.w - 12, panel_h, PANEL)
         draw_text(c, 12, y + 6, actor, INK, scale_=2)
         draw_text(c, 12 + text_width(actor, 2) + 10, y + 8,

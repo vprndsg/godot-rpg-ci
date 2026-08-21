@@ -63,7 +63,12 @@ PACKS_DIR = os.path.join(ROOT, "assets/packs")
 # Fields without which a pack cannot be shipped. Licence and attribution are
 # not paperwork: a pack whose terms nobody wrote down is a pack nobody can
 # safely publish, and this repo publishes to Pages on every merge.
-REQUIRED = ("name", "source", "author", "license", "sheet", "cell_size", "anchor", "tiles")
+REQUIRED = ("name", "source", "author", "license", "sheet", "cell_size", "anchor")
+
+# The eight grid directions an actor may author, from the animation manifest.
+# docs/architecture/animation.md is the schema; this is its Python half.
+ACTOR_DIRECTIONS = ("down", "down_left", "left", "up_left",
+                    "up", "up_right", "right", "down_right")
 
 
 def pack_names():
@@ -128,6 +133,9 @@ def problems(manifest):
     for field in REQUIRED:
         if field not in manifest:
             out.append("pack '%s' has no '%s'" % (name, field))
+    if "tiles" not in manifest and "actors" not in manifest:
+        out.append("pack '%s' has neither 'tiles' nor 'actors' -- a pack has to "
+                   "say what its pixels are for" % name)
     if out:
         return out
 
@@ -169,13 +177,73 @@ def problems(manifest):
         out.append("pack '%s': the %dx%d sheet is smaller than one %dx%d cell"
                    % (name, image.w, image.h, cw, ch))
         return out
-    for tile_name, at in manifest["tiles"].items():
+    for tile_name, at in manifest.get("tiles", {}).items():
         if not (isinstance(at, list) and len(at) == 2):
             out.append("pack '%s': tile '%s' must give [column, row]" % (name, tile_name))
             continue
         if not (0 <= at[0] < columns and 0 <= at[1] < rows):
             out.append("pack '%s': tile '%s' at %s is outside the %dx%d cell grid"
                        % (name, tile_name, at, columns, rows))
+    out += actor_problems(manifest, name)
+    return out
+
+
+def actor_problems(manifest, name):
+    """Everything wrong with a pack's `actors` block, in plain language.
+
+    A pack that ships a character carries its own frame size, anchor,
+    directions and clips, and tools/gen_art.py copies them straight into the
+    generated actor manifest. Checking them here means a bad bake is caught by
+    `tools/ci.sh art` -- before an engine is involved and before the numbers
+    have been copied anywhere.
+    """
+    out = []
+    for actor, spec in sorted(manifest.get("actors", {}).items()):
+        where = "pack '%s' actor '%s'" % (name, actor)
+        sheet_name = spec.get("sheet", manifest["sheet"])
+        sheet_path = os.path.join(manifest["_dir"], sheet_name)
+        if not os.path.isfile(sheet_path):
+            out.append("%s names sheet '%s', which is not there" % (where, sheet_name))
+            continue
+        size = spec.get("frame_size")
+        anchor = spec.get("anchor")
+        if not (isinstance(size, list) and len(size) == 2
+                and all(isinstance(v, int) and v > 0 for v in size)):
+            out.append("%s: frame_size must be [w, h] of whole pixels" % where)
+            continue
+        if not (isinstance(anchor, list) and len(anchor) == 2
+                and 0 <= anchor[0] < size[0] and 0 <= anchor[1] < size[1]):
+            out.append("%s: anchor %s is outside its own %dx%d frame"
+                       % (where, anchor, size[0], size[1]))
+        directions = spec.get("directions") or []
+        unknown = [d for d in directions if d not in ACTOR_DIRECTIONS]
+        if unknown:
+            out.append("%s: unknown direction(s) %s -- the eight are %s"
+                       % (where, ", ".join(unknown), ", ".join(ACTOR_DIRECTIONS)))
+        if not directions:
+            out.append("%s authors no directions" % where)
+            continue
+        image = load_png(sheet_path)
+        columns = image.w // size[0]
+        rows = image.h // size[1]
+        clips = spec.get("clips") or {}
+        if not clips:
+            out.append("%s has no clips" % where)
+        for clip, info in sorted(clips.items()):
+            frames = info.get("frames", 0)
+            row = info.get("row", 0)
+            if frames < 1:
+                out.append("%s clip '%s' has no frames" % (where, clip))
+            elif frames > columns:
+                out.append("%s clip '%s' wants %d frames but the sheet is %d "
+                           "column(s) wide" % (where, clip, frames, columns))
+            if row + len(directions) > rows:
+                out.append("%s clip '%s' starts at row %d and needs %d rows, but "
+                           "the sheet has %d" % (where, clip, row,
+                                                 len(directions), rows))
+            if frames > 1 and not info.get("fps"):
+                out.append("%s clip '%s' has %d frames and no frame rate"
+                           % (where, clip, frames))
     return out
 
 
@@ -252,7 +320,10 @@ def credits_markdown():
         lines.append("- **Licence:** %s" % p.get("license", "?"))
         if p.get("attribution"):
             lines.append("- **Required attribution:** %s" % p["attribution"])
-        lines.append("- **Tiles:** %s" % ", ".join(sorted(p.get("tiles", {}))))
+        if p.get("tiles"):
+            lines.append("- **Tiles:** %s" % ", ".join(sorted(p["tiles"])))
+        if p.get("actors"):
+            lines.append("- **Characters:** %s" % ", ".join(sorted(p["actors"])))
         maps = [k for k in SIBLINGS if provides(p, k)]
         if maps:
             lines.append("- **Material maps:** %s" % ", ".join(maps))
@@ -283,10 +354,11 @@ if __name__ == "__main__":
             continue
         dx, dy = offset(manifest)
         extras = [k for k in SIBLINGS if provides(manifest, k)]
-        print("  ok %-20s %d tiles, scale %dx, offset %+d%+d%s"
-              % (name, len(manifest["tiles"]), scale_of(manifest), dx, dy,
+        print("  ok %-20s %d tiles, %d actors, scale %dx, offset %+d%+d%s"
+              % (name, len(manifest.get("tiles", {})),
+                 len(manifest.get("actors", {})), scale_of(manifest), dx, dy,
                  ", " + "+".join(extras) if extras else ""))
-        for tile_name in sorted(manifest["tiles"]):
+        for tile_name in sorted(manifest.get("tiles", {})):
             _, spilled = cell_pixels(manifest, tile_name)
             if spilled:
                 bad = True

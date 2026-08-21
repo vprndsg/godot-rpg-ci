@@ -58,6 +58,11 @@ Four things are separated on purpose, because they change independently:
 `frame_size` and `anchor` may be stated per actor to override the sheet's, so
 two characters can share one texture at different sizes.
 
+An imported character does not write this file by hand — nothing does, it is
+generated. It states the same fields in an `actors` block in its own
+`pack.json`, and `tools/gen_art.py` folds them in. `tools/ci.sh inbox` bakes a
+`.glb` into exactly that; see [`inbox.md`](inbox.md).
+
 **Rows.** A clip's `row` is the sheet row of its **first** direction; direction
 *d* of that clip is `row + d` in the clip's own direction order. Frames run
 horizontally from column 0. That is the only layout rule, and it is what lets a
@@ -71,14 +76,20 @@ the screen axes.
 
 ```
       grid                              screen
-        up                       up_right    up    down_right
-   up_left  up_right                   \     |     /
-      \     |     /                      \   |   /
- left ----  o  ---- right      left ------  o  ------ right
-      /     |     \                      /   |   \
- down_left  |  down_right               /    |    \
-       down                       up_left   down   down_left
+        up                          left    up_left     up
+   up_left  up_right                   \       |       /
+      \     |     /                      \     |     /
+ left ----  o  ---- right   down_left ----     o     ---- up_right
+      /     |     \                      /     |     \
+ down_left  |  down_right               /      |      \
+       down                            down  down_right  right
 ```
+
+Read the right-hand compass as *where on screen each grid direction points*.
+It falls straight out of `Iso.cell_centre()`: a step of grid +x moves
+`(+tile_w/2, +tile_h/2)` — down and to the right — and a step of grid +y moves
+`(-tile_w/2, +tile_h/2)`, down and to the left. So the grid's diagonals are the
+screen's axes, and vice versa.
 
 `down` and `right` come toward the camera and show a face; `up` and `left`
 show a back. `down_right` is straight down the screen.

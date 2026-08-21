@@ -1175,11 +1175,51 @@ def build_actors():
                 "walk": {"row": row, "frames": WALK_FRAMES, "fps": WALK_FPS, "loop": True},
             },
         }
+    add_pack_actors(manifest)
+
     path = os.path.join(ROOT, "assets/sprites/actors.json")
     with open(path, "w") as f:
         json.dump(manifest, f, indent=2)
         f.write("\n")
     print("wrote %s" % os.path.relpath(path, ROOT))
+
+
+def add_pack_actors(manifest):
+    """Fold every imported pack's characters into the generated manifest.
+
+    A pack that ships a character states its own frame size, anchor, directions
+    and clips in `pack.json`; this copies them across. That keeps
+    `assets/sprites/actors.json` a generated file -- so the never-hand-edit rule
+    and the CI drift check both still mean what they say -- while the numbers
+    themselves live next to the pixels they describe, which is the only place
+    they can be re-derived from if the sheet is ever re-baked.
+    """
+    for pack_name in packs.pack_names():
+        pack = packs.load(pack_name)
+        for actor, spec in sorted(pack.get("actors", {}).items()):
+            sheet_file = spec.get("sheet", pack["sheet"])
+            key = "%s_%s" % (pack_name, os.path.splitext(sheet_file)[0])
+            sheet = {
+                "texture": "res://assets/packs/%s/%s" % (pack_name, sheet_file),
+                "frame_size": list(spec["frame_size"]),
+                "anchor": list(spec["anchor"]),
+            }
+            stem, ext = os.path.splitext(sheet_file)
+            for kind in ("normal", "emission"):
+                sibling = "%s_%s%s" % (stem, kind, ext)
+                if os.path.isfile(os.path.join(pack["_dir"], sibling)):
+                    sheet[kind] = "res://assets/packs/%s/%s" % (pack_name, sibling)
+            manifest["sheets"][key] = sheet
+            entry = {"sheet": key, "directions": list(spec["directions"]),
+                     "clips": spec["clips"]}
+            if spec.get("fallbacks"):
+                entry["fallbacks"] = spec["fallbacks"]
+            if actor in manifest["actors"]:
+                raise SystemExit(
+                    "pack '%s' defines actor '%s', which already exists. Rename "
+                    "the pack directory or the actor." % (pack_name, actor))
+            manifest["actors"][actor] = entry
+            print("  + actor '%s' from pack '%s'" % (actor, pack_name))
 
 
 if __name__ == "__main__":

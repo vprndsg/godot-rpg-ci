@@ -26,6 +26,17 @@
         16,
         44
       ]
+    },
+    "example-quadruped_sheet": {
+      "texture": "res://assets/packs/example-quadruped/sheet.png",
+      "frame_size": [
+        46,
+        40
+      ],
+      "anchor": [
+        23,
+        32
+      ]
     }
   },
   "actors": {
@@ -117,6 +128,33 @@
           "row": 12,
           "frames": 4,
           "fps": 7.0,
+          "loop": true
+        }
+      }
+    },
+    "example-quadruped": {
+      "sheet": "example-quadruped_sheet",
+      "directions": [
+        "down",
+        "down_left",
+        "left",
+        "up_left",
+        "up",
+        "up_right",
+        "right",
+        "down_right"
+      ],
+      "clips": {
+        "idle": {
+          "row": 0,
+          "frames": 8,
+          "fps": 8.0,
+          "loop": true
+        },
+        "walk": {
+          "row": 8,
+          "frames": 8,
+          "fps": 8.0,
           "loop": true
         }
       }

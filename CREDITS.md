@@ -9,3 +9,11 @@ The art below came from elsewhere and carries its own terms.
 - **Source:** https://github.com/vprndsg/godot-rpg-ci
 - **Licence:** CC0-1.0
 - **Tiles:** bollard, crate_stack
+
+## example-quadruped
+
+- **Author:** Port Azure
+- **Source:** tests/fixtures/make_model.py
+- **Licence:** CC0-1.0
+- **Required attribution:** Port Azure pipeline example, CC0-1.0
+- **Characters:** example-quadruped

@@ -358,9 +358,19 @@ def prism(c, ox, oy, height, top, left, right, w=None, h=None):
 # --------------------------------------------------------------------------
 
 def load_png(path):
-    data = open(path, "rb").read()
+    """Read a PNG file into a Canvas."""
+    return decode_png(open(path, "rb").read(), path)
+
+
+def decode_png(data, label="<bytes>"):
+    """Decode PNG bytes into a Canvas.
+
+    Split from load_png so art that never touches the filesystem -- a texture
+    embedded in a GLB's binary chunk, say -- goes through exactly the same
+    decoder as a sheet on disk, instead of growing a second one.
+    """
     if data[:8] != b"\x89PNG\r\n\x1a\n":
-        raise ValueError("%s is not a PNG" % path)
+        raise ValueError("%s is not a PNG" % label)
 
     pos, width, height, depth, colour = 8, None, None, None, None
     idat = bytearray()
@@ -378,7 +388,7 @@ def load_png(path):
 
     if depth != 8 or colour not in (2, 6):
         raise ValueError("%s: only 8-bit RGB/RGBA is supported (depth=%s colour=%s)"
-                         % (path, depth, colour))
+                         % (label, depth, colour))
     channels = 4 if colour == 6 else 3
 
     raw = zlib.decompress(bytes(idat))
@@ -411,7 +421,7 @@ def load_png(path):
                 pred = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
                 line[i] = (line[i] + pred) & 255
         elif filt != 0:
-            raise ValueError("%s: unsupported filter type %d on row %d" % (path, filt, y))
+            raise ValueError("%s: unsupported filter type %d on row %d" % (label, filt, y))
 
         for x in range(width):
             i = x * channels

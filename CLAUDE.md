@@ -126,6 +126,7 @@ prints each raised cell's level on the render.
 ## The loop
 
 ```
+tools/ci.sh inbox      # bake whatever is in inbox/ into a pack, then verify
 tools/ci.sh import     # re-import assets; run this after touching anything
 tools/ci.sh test       # the whole suite, ~2 seconds
 tools/ci.sh generate   # only after editing tiles.json or tools/gen_art.py
@@ -173,6 +174,7 @@ lives in JSON you can read and diff.
 | Scenery props that exist | `assets/scenery/scenery.json` | `tools/ci.sh test` |
 | What a tile does to light (emit, block, glow) | `"lighting"` block in `tiles.json` (+ `e_<name>` painter for glow) | `tools/ci.sh generate` then `test` |
 | Bring in bought or downloaded art | `assets/packs/<name>/` + a registry entry | `tools/ci.sh art`, then `generate` |
+| Turn a 3D model into a character | drop the `.glb` in `inbox/` | `tools/ci.sh inbox` — it bakes, installs and verifies |
 | The world's geometry or the frame | `assets/tiles/tiles.json` / `data/rendering.json` | `tools/ci.sh generate` then `test` |
 | Movement, interaction, saving | `scripts/*.gd` | `tools/ci.sh test` |
 | Key bindings | `tools/setup_input.gd` | run that script, commit `project.godot` |
@@ -183,7 +185,7 @@ the runtime builds the nodes. Never hardcode an asset name to get a behaviour
 and never place a map's lights, effects or scenery in a scene file.
 `docs/architecture/AGENTS.md` is the checklist, and it links to one design doc
 per subsystem: `rendering.md`, `scenery.md`, `animation.md`, `camera.md`,
-`fx.md`, `lighting.md`.
+`fx.md`, `lighting.md`, `inbox.md`.
 
 ## Simulation and presentation are separate, deliberately
 
@@ -225,6 +227,8 @@ tools/pixel.py       canvas, PNG, palette, the geometry contract, and the
                      diamond primitives. Shared by all renderers.
 docs/art/            GENERATED contact sheets and map renders. Look at these.
 docs/architecture/   one design doc per subsystem + the scoped AGENTS.md.
+inbox/               a doorway, not a library: drop a .glb in and run
+                     `tools/ci.sh inbox`. The source is consumed into a pack.
 scenes/              player, npc, dialogue box, world, title. Containers only:
                      nothing content-shaped, no map data, no lights, no effects.
 tests/               the suite. Add to it whenever you add a mechanic.

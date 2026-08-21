@@ -1,0 +1,29 @@
+{
+  "_comment": "Settings for the inbox pipeline (tools/ci.sh inbox). Set once, then dropping a model in inbox/ and running one command is the whole job. docs/architecture/inbox.md explains every field.",
+
+  "defaults": {
+    "_comment": "Applied to every asset. author/source/license end up in pack.json and CREDITS.md; the pipeline refuses to guess them, because this repo publishes to the web on every merge.",
+    "author": "",
+    "source": "",
+    "license": "",
+    "kind": "actor",
+
+    "bake": {
+      "_comment_forward": "Which glTF axis the model's nose points down before the baker turns it. -z is the Blender/Meshy default and lands on grid `down`, the direction that shows a face. If the sheet comes out facing the wrong way, this is the one setting to change.",
+      "forward": "-z",
+      "_comment_scale": "One grid cell is this many metres of world. A 1.8m person comes out a little over a cell tall. Use fit_height instead to pin a sprite to an exact pixel height.",
+      "cell_metres": 1.5,
+      "_comment_height": "Squashes the model's up axis before the camera sees it. 1.0 is geometrically correct dimetric. The shipped placeholder tiles are flatter than that -- a cell-high wall is 0.82 cells at true scale -- so drop toward 0.8 if new art has to sit beside them rather than replace them.",
+      "height_scale": 1.0,
+      "colours": 10,
+      "bands": 4,
+      "supersample": 4,
+      "max_frames": 8,
+      "outline": true
+    }
+  },
+
+  "assets": {
+    "_comment": "Per-asset overrides, keyed by the file's name without its extension. Anything here beats defaults; a sidecar inbox/<name>.json beats both."
+  }
+}

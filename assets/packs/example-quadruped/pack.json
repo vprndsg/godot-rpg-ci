@@ -1,0 +1,66 @@
+{
+  "name": "example-quadruped",
+  "source": "tests/fixtures/make_model.py",
+  "author": "Port Azure",
+  "license": "CC0-1.0",
+  "attribution": "Port Azure pipeline example, CC0-1.0",
+  "sheet": "sheet.png",
+  "cell_size": [
+    46,
+    40
+  ],
+  "anchor": [
+    23,
+    32
+  ],
+  "scale": 1,
+  "tiles": {},
+  "baked_from": "source/model.glb",
+  "bake": {
+    "forward": "-z",
+    "cell_metres": 1.5,
+    "height_scale": 1.0,
+    "colours": 10,
+    "bands": 4,
+    "supersample": 4,
+    "max_frames": 8,
+    "outline": true
+  },
+  "actors": {
+    "example-quadruped": {
+      "sheet": "sheet.png",
+      "frame_size": [
+        46,
+        40
+      ],
+      "anchor": [
+        23,
+        32
+      ],
+      "directions": [
+        "down",
+        "down_left",
+        "left",
+        "up_left",
+        "up",
+        "up_right",
+        "right",
+        "down_right"
+      ],
+      "clips": {
+        "idle": {
+          "row": 0,
+          "frames": 8,
+          "fps": 8.0,
+          "loop": true
+        },
+        "walk": {
+          "row": 8,
+          "frames": 8,
+          "fps": 8.0,
+          "loop": true
+        }
+      }
+    }
+  }
+}
