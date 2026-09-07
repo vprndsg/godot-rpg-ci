@@ -278,3 +278,51 @@ func test_each_portal_is_wired_to_travel_once() -> void:
 					% [portal.target_map, map_id])
 		equal(found, world.loader.current.portals.size(),
 			"map '%s' places %d portals but spawned %d" % [map_id, world.loader.current.portals.size(), found])
+
+
+## The bottle bought from Mira does something once the game is running: the
+## use key finds it, drinking it says so, and the world slows down.
+func test_drinking_the_ale_slows_the_walk() -> void:
+	await _boot()
+	if world == null:
+		return
+	var map := world.loader.current
+	var spawn := map.primary_spawn()
+
+	var action := ""
+	for candidate: String in ["move_right", "move_left", "move_down", "move_up"]:
+		var step := ActorManifest.direction_vector(candidate.trim_prefix("move_"))
+		var cell := spawn + Vector2i(step)
+		if map.is_walkable(cell) and map.is_walkable(spawn + Vector2i(step) * 2):
+			action = candidate
+			break
+	if not ok(not action.is_empty(), "spawn on '%s' has no direction with two clear tiles" % map.id):
+		return
+
+	var sober := await _walk_distance(spawn, action)
+
+	GameState.add_item("beer_bottle")
+	ok(world.player.use_carried_item(), "the use key found nothing to drink")
+	ok(Dialogue.is_active(), "drinking the ale said nothing")
+	Dialogue.stop()
+	ok(GameState.effect_active("tipsy"), "drinking the ale left the player unaffected")
+	ok(not GameState.has_item("beer_bottle"), "the bottle was drunk and kept")
+
+	var tipsy := await _walk_distance(spawn, action)
+	ok(tipsy < sober,
+		"tipsy walk covered %.2f tiles against %.2f sober; the effect is not reaching movement"
+			% [tipsy, sober])
+
+
+## Tiles covered walking `action` from `cell` for a fixed number of physics
+## frames. In tiles, not pixels: a screen distance means different things in
+## different directions once the world is projected.
+func _walk_distance(cell: Vector2i, action: String) -> float:
+	world.player.place_on(cell)
+	await physics_frames(2)
+	var before := Iso.screen_to_grid(world.player.global_position)
+	Input.action_press(action)
+	await physics_frames(20)
+	Input.action_release(action)
+	await physics_frames(2)
+	return Iso.screen_to_grid(world.player.global_position).distance_to(before)

@@ -5,13 +5,30 @@
   "nodes": {
     "open": {
       "goto_if": [
-        { "requires": { "ledger_signed": true }, "next": "after_signed" },
-        { "requires": { "ledger_started": true }, "next": "ledger" },
-        { "requires": { "met_mira": true }, "next": "regular" }
+        {
+          "requires": {
+            "ledger_signed": true
+          },
+          "next": "after_signed"
+        },
+        {
+          "requires": {
+            "ledger_started": true
+          },
+          "next": "ledger"
+        },
+        {
+          "requires": {
+            "met_mira": true
+          },
+          "next": "regular"
+        }
       ],
       "speaker": "Mira",
       "text": "New face. Sit anywhere that isn't wet.",
-      "set": { "met_mira": true },
+      "set": {
+        "met_mira": true
+      },
       "next": "menu"
     },
     "regular": {
@@ -23,9 +40,22 @@
       "speaker": "Mira",
       "text": "What'll it be?",
       "choices": [
-        { "text": "What's upstairs?", "next": "rooms" },
-        { "text": "Heard anything worth hearing?", "next": "rumour" },
-        { "text": "Nothing, thanks.", "next": "" }
+        {
+          "text": "Something to drink.",
+          "next": "drink"
+        },
+        {
+          "text": "What's upstairs?",
+          "next": "rooms"
+        },
+        {
+          "text": "Heard anything worth hearing?",
+          "next": "rumour"
+        },
+        {
+          "text": "Nothing, thanks.",
+          "next": ""
+        }
       ]
     },
     "rooms": {
@@ -47,8 +77,17 @@
       "speaker": "Mira",
       "text": "He wants a signature. What he'll get is a signature and an opinion.",
       "choices": [
-        { "text": "Hand her the ledger.", "next": "sign", "set": { "ledger_signed": true } },
-        { "text": "Ask what the opinion is.", "next": "opinion" }
+        {
+          "text": "Hand her the ledger.",
+          "next": "sign",
+          "set": {
+            "ledger_signed": true
+          }
+        },
+        {
+          "text": "Ask what the opinion is.",
+          "next": "opinion"
+        }
       ]
     },
     "opinion": {
@@ -68,7 +107,12 @@
     },
     "after_signed": {
       "goto_if": [
-        { "requires": { "ledger_paid": true }, "next": "paid" }
+        {
+          "requires": {
+            "ledger_paid": true
+          },
+          "next": "paid"
+        }
       ],
       "speaker": "Mira",
       "text": "Kesk's still waiting on that ledger. Downhill, can't miss him, he's the one shaped like a complaint.",
@@ -78,6 +122,41 @@
       "speaker": "Mira",
       "text": "He paid you? Then the day's already unusual. First one's on the house -- sit by the fire.",
       "next": ""
+    },
+    "drink": {
+      "speaker": "Mira",
+      "text": "Harbour ale, bottled. Five marks, and it's better cold, which it never is.",
+      "choices": [
+        {
+          "text": "One bottle. (5 marks)",
+          "buy": "beer_bottle",
+          "next": "poured",
+          "else": "short"
+        },
+        {
+          "text": "What else is in the cellar?",
+          "next": "cellar"
+        },
+        {
+          "text": "Changed my mind.",
+          "next": "menu"
+        }
+      ]
+    },
+    "poured": {
+      "speaker": "Mira",
+      "text": "There. Don't open it at the bar -- I've only just wiped it down. Drink it when your legs need convincing.",
+      "next": "menu"
+    },
+    "short": {
+      "speaker": "Mira",
+      "text": "Five marks. Not four, and not a story about the sea. Come back when the purse rattles.",
+      "next": "menu"
+    },
+    "cellar": {
+      "speaker": "Mira",
+      "text": "Ale, vinegar, and a barrel of something my father labelled and I have never opened.",
+      "next": "drink"
     }
   }
 }

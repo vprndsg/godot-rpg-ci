@@ -13,6 +13,10 @@ signal dialogue_started(dialogue_id: String)
 signal dialogue_finished(dialogue_id: String)
 
 var active_id: String = ""
+## The merchant whose counter this conversation is happening across, set by
+## whoever started it. A `buy` choice spends against this shop and nothing
+## else, so the same dialogue read away from the shop simply cannot sell.
+var shop_id: String = ""
 var _graph: Dictionary = {}
 var _node_id: String = ""
 
@@ -56,13 +60,14 @@ func show_line(speaker: String, text: String) -> bool:
 	return true
 
 
-func start(dialogue_id: String) -> bool:
+func start(dialogue_id: String, shop: String = "") -> bool:
 	if is_active():
 		return false
 	var graph := load_graph(dialogue_id)
 	if graph.is_empty():
 		return false
 	_graph = graph
+	shop_id = shop
 	active_id = dialogue_id
 	dialogue_started.emit(dialogue_id)
 	_goto(String(graph.get("start", "")))
@@ -88,8 +93,15 @@ func choose(index: int) -> void:
 		push_warning("Choice %d out of range" % index)
 		return
 	var choice: Dictionary = choices[index]
+	# A refused sale takes the `else` branch and applies nothing: the flags on
+	# a choice describe what happened, and on this branch it did not.
+	var next := String(choice.get("next", ""))
+	var wanted := String(choice.get("buy", ""))
+	if not wanted.is_empty() and not GameState.buy(shop_id, wanted).is_empty():
+		_goto(String(choice.get("else", next)))
+		return
 	_apply_effects(choice)
-	_goto(String(choice.get("next", "")))
+	_goto(next)
 
 
 func stop() -> void:
@@ -97,6 +109,7 @@ func stop() -> void:
 		return
 	var finished := active_id
 	active_id = ""
+	shop_id = ""
 	_graph = {}
 	_node_id = ""
 	dialogue_finished.emit(finished)
@@ -130,6 +143,14 @@ func _apply_effects(node: Dictionary) -> void:
 	if sets is Dictionary:
 		for flag: String in sets:
 			GameState.set_flag(flag, sets[flag])
+	# Payment and gifts are one-way: unlike a purchase they cannot fail, so
+	# they are ordinary effects rather than something the graph branches on.
+	var paid: Variant = node.get("give_gold")
+	if paid != null:
+		GameState.add_gold(int(paid))
+	var gift: Variant = node.get("give_item")
+	if gift != null:
+		GameState.add_item(String(gift))
 
 
 func _goto(next_id: String) -> void:
@@ -243,6 +264,11 @@ static func validate_graph(dialogue_id: String) -> PackedStringArray:
 			else:
 				targets.append(jump)
 
+		var gift: Variant = (node as Dictionary).get("give_item")
+		if gift != null and not ItemRegistry.exists(String(gift)):
+			errors.append("node '%s' gives '%s', which data/items/items.json does not define"
+				% [node_id, gift])
+
 		var choices: Variant = (node as Dictionary).get("choices", [])
 		for choice: Variant in choices:
 			if not (choice is Dictionary):
@@ -253,6 +279,17 @@ static func validate_graph(dialogue_id: String) -> PackedStringArray:
 			var choice_next := String((choice as Dictionary).get("next", ""))
 			if not choice_next.is_empty():
 				targets.append(choice_next)
+			# A purchase is the one choice that can be refused, so both of its
+			# exits have to land somewhere real.
+			var wanted := String((choice as Dictionary).get("buy", ""))
+			if not wanted.is_empty() and not ItemRegistry.exists(wanted):
+				errors.append("node '%s' sells '%s', which data/items/items.json does not define"
+					% [node_id, wanted])
+			var refused := String((choice as Dictionary).get("else", ""))
+			if not refused.is_empty():
+				if wanted.is_empty():
+					errors.append("node '%s' has an 'else' branch but nothing that can fail" % node_id)
+				targets.append(refused)
 
 		var has_text: bool = not String((node as Dictionary).get("text", "")).is_empty()
 		var goto_rules: Array = (node as Dictionary).get("goto_if", [])

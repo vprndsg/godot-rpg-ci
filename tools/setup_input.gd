@@ -16,6 +16,7 @@ const BINDINGS := {
 	"move_left": ["A", "LEFT"],
 	"move_right": ["D", "RIGHT"],
 	"interact": ["E", "SPACE", "ENTER"],
+	"use_item": ["Q"],
 	"continue_game": ["C"],
 	"quick_save": ["F5"],
 	"toggle_fullscreen": ["F"],

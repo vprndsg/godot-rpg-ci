@@ -55,7 +55,10 @@ func _physics_process(delta: float) -> void:
 
 	# `step` is in tiles; the projection turns it into pixels. Doing it in this
 	# order is what makes every direction cost the same amount of ground.
-	velocity = Iso.grid_vector(step) * SPEED
+	# Status effects scale the walk. The player asks for a number, not for a
+	# list of what it is drunk: a new effect that slows you down is a JSON
+	# entry, not an edit here.
+	velocity = Iso.grid_vector(step) * SPEED * GameState.modifier("speed_scale")
 
 	# Solid tiles at level 0 push back through physics; cliffs and everything
 	# on raised ground have no collision shapes and are enforced by the world
@@ -102,6 +105,10 @@ func _update_lift() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("use_item") and not Dialogue.is_active() and not Router.is_travelling():
+		use_carried_item()
+		get_viewport().set_input_as_handled()
+		return
 	if not event.is_action_pressed("interact"):
 		return
 	if Router.is_travelling():
@@ -115,6 +122,22 @@ func _unhandled_input(event: InputEvent) -> void:
 		target.interact(self)
 		interacted.emit(target)
 		get_viewport().set_input_as_handled()
+
+
+## Use the first usable thing in the pack, and say what happened.
+##
+## One key, no menu: with a single bottle on you that is the whole interaction,
+## and the line is the feedback that the drink did something.
+func use_carried_item() -> bool:
+	var item_id := GameState.first_usable_item()
+	if item_id.is_empty():
+		Dialogue.show_line("", "Nothing in your pack is any use right now.")
+		return false
+	var text := ItemRegistry.use_text(item_id)
+	if not GameState.use_item(item_id):
+		return false
+	Dialogue.show_line("", text)
+	return true
 
 
 ## Nearest thing the player is facing that can be talked to, or null.

@@ -168,6 +168,9 @@ lives in JSON you can read and diff.
 | The effects that exist at all | `data/fx/effects.json` + a shader | `tools/ci.sh test` |
 | Who someone is | `data/npcs/<id>.json` | `tools/ci.sh test` |
 | What someone says | `dialogue/<id>.json` | `tools/ci.sh test` |
+| What a merchant sells | `data/shops/<id>.json` + `"shop"` on the NPC | `tools/ci.sh test` |
+| The items that exist | `data/items/items.json` | `tools/ci.sh test` |
+| What using an item does | `data/items/status_effects.json` | `tools/ci.sh test` |
 | A character's frames, clips or directions | `assets/sprites/actors.json` (generated — via `tools/gen_art.py`) | `tools/ci.sh generate` then `test` |
 | The tiles that exist | `assets/tiles/tiles.json` + `tools/gen_art.py` | `tools/ci.sh generate` then `test` |
 | Scenery props that exist | `assets/scenery/scenery.json` | `tools/ci.sh test` |
@@ -208,7 +211,9 @@ data/npcs/*.json     display name, sprite, dialogue id, behaviour.
 data/lighting/*.json named lighting profiles (ambient + directional).
 data/fx/effects.json the effect vocabulary: shader, space, order, parameters.
 data/fx/*.json       named effect stacks a map can ask for.
-dialogue/*.json      a node graph: text, choices, flags.
+dialogue/*.json      a node graph: text, choices, flags, purchases.
+data/items/*.json    the item catalogue and the status effects items cause.
+data/shops/*.json    one merchant's stock and prices.
 assets/tiles/        tiles.json is THE geometry source + the tile registry;
                      terrain*.png and terrain.tres are generated.
 assets/sprites/      actors.png + actors.json (GENERATED): the animation manifest.
@@ -307,6 +312,9 @@ You get these for free; do not re-implement them.
 - Every dialogue node is reachable from `start`, every jump lands on a real
   node, and every node can still reach an ending.
 - Every flag a conversation sets is read by some conversation.
+- Every item, effect and shop resolves: a price above zero, a duration, a
+  modifier gameplay actually reads and in range; every shop has a keeper and
+  every `buy` choice is offered by a merchant who stocks it.
 - The baked tileset matches `tiles.json`, tile for tile and solid for solid,
   and is still an isometric diamond grid of the size the registry declares.
 - Every map's `lighting` block resolves: the profile exists and every value is

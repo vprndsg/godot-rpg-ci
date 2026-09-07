@@ -1,0 +1,7 @@
+{
+  "display_name": "The Salt & Sextant",
+  "_comment": "Mira's bar stock. An entry may override the catalogue price; leaving it out charges what the item is worth.",
+  "stock": [
+    { "item": "beer_bottle" }
+  ]
+}

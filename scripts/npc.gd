@@ -22,6 +22,9 @@ var npc_id: String = ""
 var display_name: String = ""
 var dialogue_id: String = ""
 var behavior: String = "idle"
+## The shop this character keeps, or "". A merchant is an NPC with stock: the
+## conversation is the counter, and `buy` choices spend against this id.
+var shop_id: String = ""
 var home_cell: Vector2i = Vector2i.ZERO
 var wander_radius: int = 0
 
@@ -72,6 +75,7 @@ func configure(id: String, def: Dictionary, cell: Vector2i, facing: String) -> v
 	display_name = String(def.get("display_name", id.capitalize()))
 	dialogue_id = String(def.get("dialogue", id))
 	behavior = String(def.get("behavior", "idle"))
+	shop_id = String(def.get("shop", ""))
 	wander_radius = int(def.get("wander_radius", 1))
 	home_cell = cell
 	_rng.seed = hash(id)
@@ -150,7 +154,7 @@ func _grid_step_to(point: Vector2) -> Vector2:
 ## Called by Player when the player presses interact while facing this NPC.
 func interact(player: Player) -> void:
 	_face_toward(player.global_position)
-	if not Dialogue.start(dialogue_id):
+	if not Dialogue.start(dialogue_id, shop_id):
 		push_warning("NPC '%s' has no usable dialogue '%s'" % [npc_id, dialogue_id])
 
 

@@ -1,0 +1,12 @@
+{
+  "_comment": "Timed states an item can put the player in. `modifiers` are read by gameplay through GameState.modifier(); every key must be in StatusEffects.MODIFIERS and inside its range, so a typo fails CI instead of doing nothing.",
+  "effects": {
+    "tipsy": {
+      "display_name": "Tipsy",
+      "duration": 30.0,
+      "modifiers": { "speed_scale": 0.85 },
+      "start_text": "The room tilts a little, agreeably.",
+      "end_text": "The room levels out."
+    }
+  }
+}

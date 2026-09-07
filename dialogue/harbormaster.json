@@ -75,7 +75,8 @@
       "set": {
         "ledger_paid": true
       },
-      "next": "pay_out_end"
+      "next": "pay_out_end",
+      "give_gold": 8
     },
     "pay_out_end": {
       "speaker": "Kesk",

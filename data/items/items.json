@@ -1,0 +1,15 @@
+{
+  "_comment": "The item catalogue. Prices are in marks -- the coin the game calls gold in code and Port Azure calls marks out loud. An item with a `use` block can be used from the inventory; `effect` names an entry in data/items/status_effects.json.",
+  "items": {
+    "beer_bottle": {
+      "display_name": "Bottle of Harbour Ale",
+      "description": "Brown glass, no label. Mira brews it in the cellar and denies it.",
+      "price": 5,
+      "use": {
+        "consumed": true,
+        "effect": "tipsy",
+        "text": "You drink the ale. It is warm, and it is not good, and it helps."
+      }
+    }
+  }
+}
